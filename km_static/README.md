@@ -25,6 +25,8 @@ km/
   labels.py       Appendix E 키워드 기반 action_label 1차 추정 (우선순위·보류 규칙 포함)
   normalize.py    raw → Appendix D 스키마 레코드 (records.jsonl/csv)
   summarize.py    보고용 표 + 수동 점검 시트
+  reclassify.py   판정 규칙 수정 후 기존 raw 의 화면 상태 재판정 (재접속 없음)
+  labelsheet.py   ③ 수동 라벨: C/V 등급 입력 시트 생성(export) → 반영(apply) → 일치도(agree)
   tranco_rank.py  고정 Tranco 리스트로 rank 채우기
 config/commerce_pilot.csv   파일럿 코퍼스 20개 (원본 순위 순)
 tests/                      로컬 픽스처(정답지 포함) + 검증 스크립트
@@ -135,6 +137,36 @@ Tier 1의 고정값은 다음과 같다. 정적 근거만으로는 확정하지 
 - `locale`과 `timezone`은 사이트별로 지정한다(ru-RU, zh-CN, ja-JP, id-ID 등). 검색어도 현지어로 넣었다.
 - 로그인 URL이 비어 있는 사이트(ozon.ru, shop.app, rakuten.co.jp)는 첫 실행에서 실제 URL을 확인해 채운다. 그 전까지는 `not_configured`로 기록된다.
 - `login_redirect`는 검색·장바구니 등이 로그인 페이지로 이동한 경우다(Taobao, Shopee 등에서 예상). 우회하지 않으며, 레코드화하지 않고 커버리지에만 남긴다.
+
+## ③ 수동 라벨링: 결과 등급(C)·확인 등급(V)
+
+Tier 1 레코드는 정의서대로 C/V가 모두 `unknown`이다. 등급은 사람이 근거를 보고 입력한다.
+
+```powershell
+# 1) 후보 액션만 추린 엑셀 시트 생성 → data_run1/labels/label_sheet.xlsx
+python -m km.labelsheet export --data data_run1
+
+# 2) 엑셀에서 노란 열 입력 (드롭다운). 'guide' 시트에 입력 규칙이 있음
+
+# 3) 입력값 반영 → data_run1/labels/records_labeled.jsonl|csv, labels_summary.md
+python -m km.labelsheet apply --data data_run1 --sheet data_run1/labels/label_sheet.xlsx
+
+# 라벨러 2명이 같은 시트를 따로 채운 경우 일치도 (Cohen's kappa)
+python -m km.labelsheet agree --a 라벨러A.xlsx --b 라벨러B.xlsx
+
+# 재수집 후 시트를 다시 만들 때 기존 입력 이어받기
+python -m km.labelsheet export --data data_run1 --prev data_run1/labels/label_sheet.xlsx --out data_run1/labels/label_sheet_v2.xlsx
+```
+
+- 시트 행: 정상(ok) 화면의 enter-submit·accesskey 전부, `action_label`이 붙은 focused-control·hotkey,
+  `needs_manual_review` 레코드. 사이트·action_id·도달 경로·출력 키가 같으면 화면이 달라도 한 행이다.
+- P1~P4, S, R1~R3, E 는 `Y`/`N`/빈칸(근거 부족). 빈칸은 N 이 아니다. C 등급은 이 입력으로 자동 계산된다.
+- V 등급은 직접 고른다. 확인 절차를 관측하지 못했으면 `unknown`.
+- `danger_status`: excluded(도달 불가·C0~C2·V2 중 하나 확인) / confirmed(reachable·C3·V0~V1 + 최종 검토 Y) /
+  candidate(세 조건 충족이나 검토 전, 또는 불충족 없이 C3 근거 있음) / unresolved(그 외).
+- 엑셀의 C_auto·danger_auto 열은 입력 확인용 수식이고, 최종 값은 `apply`가 같은 규칙으로 다시 계산한다.
+- 규칙 검사: `python -m tests.test_labelsheet`
+- 시트와 산출물은 사이트별 키–액션 매핑이므로 `data_*/` 안에 두고 공개하지 않는다.
 
 ## 1회차 실행 후 확인할 것
 
