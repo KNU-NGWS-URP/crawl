@@ -1,0 +1,2 @@
+site,category,locale,rank,rank_source,rank_date,home_url,search_url,search_keyword,product_url,product_href_pattern,cart_url,login_url,login_required_actions,sandbox,notes
+fixture.local,commerce,ko-KR,,,,http://127.0.0.1:8765/index.html,,,,,,,n/a,n/a,local test fixture

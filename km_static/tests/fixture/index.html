@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>KM fixture shop</title>
+<script src="vendor/jquery.min.js"></script>
+<script src="vendor/mousetrap.min.js"></script>
+<script src="vendor/react.production.min.js"></script>
+<script src="vendor/react-dom.production.min.js"></script>
+</head><body>
+<!-- 정답지(ground truth)는 tests/test_fixture.py 의 EXPECT 참조 -->
+<header>
+  <a href="/cart" accesskey="c">장바구니</a>
+  <form id="search" action="/search" method="get">
+    <input type="search" name="q" placeholder="검색">
+    <button>검색</button>  <!-- type 미지정 → submit (default_button) -->
+  </form>
+</header>
+
+<form id="login" action="/login" method="post">        <!-- 필드 2개 + 버튼 없음 → blocked_multiple_fields -->
+  <input name="id" type="text"><input name="pw" type="password">
+</form>
+<form id="coupon" action="/coupon/apply" method="post">  <!-- 필드 1개 + 버튼 없음 → no_button_single_field -->
+  <input name="code" type="text">
+</form>
+<form id="buy" action="/order/checkout" method="post" onsubmit="return true">
+  <input name="qty" type="number" value="1">
+  <button type="submit" accesskey="b">바로구매</button>   <!-- accesskey + enter-submit, financial -->
+</form>
+<form id="dis" action="/x"><input name="a"><button disabled>저장</button></form> <!-- default_button_disabled -->
+
+<button id="del" class="x">장바구니 삭제</button>   <!-- focused-control destructive -->
+<div role="button" data-hotkey="Shift+D">위시리스트 삭제</div>
+<div id="inl" onkeydown="if(event.key==='Escape'){closeIt()}">inline</div>
+<div id="host"></div>
+<div id="react-root"></div>
+<iframe src="frame.html"></iframe>
+
+<script>
+  // 전역 핫키 (window 대상, key 비교)
+  window.addEventListener('keydown', function hk(e){ if (e.key === 'Escape') { history.back(); } if (e.keyCode === 13 && e.ctrlKey) { document.getElementById('buy').requestSubmit(); } });
+  // on-property
+  document.onkeyup = function(e){ switch(e.key){ case 'Home': window.scrollTo(0,0); break; case 'End': break; } };
+  // 요소 리스너 → 제거되는 리스너
+  const tmp = function(e){ if (e.key === 'Tab') {} };
+  document.getElementById('del').addEventListener('keydown', tmp);
+  document.getElementById('del').removeEventListener('keydown', tmp);
+  // submit 리스너
+  document.getElementById('coupon').addEventListener('submit', function(e){ e.preventDefault(); });
+  // jQuery 위임
+  $(document).on('keydown', '.x', function(e){ if (e.which === 46) { $(this).remove(); } });
+  // Mousetrap
+  Mousetrap.bind('g c', function(){ location.href = '/cart'; });
+  // shadow DOM accesskey
+  const sr = document.getElementById('host').attachShadow({mode:'open'});
+  sr.innerHTML = '<button accesskey="s">공유하기</button>';
+  // React onKeyDown
+  const e = React.createElement;
+  ReactDOM.createRoot(document.getElementById('react-root')).render(
+    e('input', {id:'r-in', onKeyDown: function(ev){ if (ev.key === 'ArrowDown') { /* open menu */ } }}));
+  // 지연 등록 (SPA 흉내)
+  setTimeout(() => document.addEventListener('keydown', function late(e){ if (e.key === 'End') {} }), 1500);
+</script>
+</body></html>
