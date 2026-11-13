@@ -162,6 +162,16 @@ python -m km.labelsheet export --data data_run1 --prev data_run1/labels/label_sh
   `needs_manual_review` 레코드. 사이트·action_id·도달 경로·출력 키가 같으면 화면이 달라도 한 행이다.
 - P1~P4, S, R1~R3, E 는 `Y`/`N`/빈칸(근거 부족). 빈칸은 N 이 아니다. C 등급은 이 입력으로 자동 계산된다.
 - V 등급은 직접 고른다. 확인 절차를 관측하지 못했으면 `unknown`.
+- **자동 사전 라벨 (export 기본값, 끄려면 `--no-prelabel`)**: 정적 근거만으로 페이지·포커스 이동임이 분명한 행은
+  P1~P4=N, S=N, E=Y(→ C1)로 미리 채우고 `reviewer=auto-prelabel`, 규칙 ID를 `notes`에 남긴다.
+  - `R-form`: GET 폼, JS submit 핸들러 없음, action URL에 부수효과 단어 없음 (confidence medium)
+  - `R-search`: GET 검색 폼, JS 핸들러 있음 (confidence low)
+  - `R-link`: 실제 URL로 가는 `<a href>`, 인라인 onclick 없음, URL·문구에 부수효과 단어 없음 (medium)
+  - `R-akey`: 입력칸으로 포커스만 옮기는 accesskey (medium)
+  - 버튼·핫키·POST 폼, 부수효과 URL(login·cart·order·delete 등)이나 강한 동작 문구(Add to cart, Buy now 등)는
+    자동 라벨하지 않는다. **C3와 V 등급은 자동으로 정하지 않는다** (실제 동작 확인은 Tier 2).
+  - addEventListener 클릭 핸들러는 정적으로 보이지 않으므로, 자동 라벨 일부를 표본 검토하고 확인한 행은
+    `reviewer`를 사람 이름으로 바꾼다. 이전 시트(`--prev`)의 사람 입력이 자동 라벨보다 우선한다.
 - `danger_status`: excluded(도달 불가·C0~C2·V2 중 하나 확인) / confirmed(reachable·C3·V0~V1 + 최종 검토 Y) /
   candidate(세 조건 충족이나 검토 전, 또는 불충족 없이 C3 근거 있음) / unresolved(그 외).
 - 엑셀의 C_auto·danger_auto 열은 입력 확인용 수식이고, 최종 값은 `apply`가 같은 규칙으로 다시 계산한다.

@@ -74,6 +74,8 @@
       aria_label: el.getAttribute('aria-label'),
       title: el.getAttribute('title'),
       href: el.tagName === 'A' ? el.href : null,
+      link_target: el.tagName === 'A' ? el.getAttribute('target') : null,
+      onclick_attr: el.hasAttribute('onclick'),
       disabled: !!el.disabled || el.getAttribute('aria-disabled') === 'true',
       visible: isVisible(el),
       tabindex: el.getAttribute('tabindex'),

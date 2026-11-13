@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from km.labelsheet import consequence_tier, danger_status, is_danger_cell  # noqa: E402
+from km.labelsheet import consequence_tier, danger_status, is_danger_cell, prelabel  # noqa: E402
 
 N4 = {"P1": "N", "P2": "N", "P3": "N", "P4": "N"}
 R_Y = {"R1": "Y", "R2": "Y", "R3": "Y"}
@@ -43,8 +43,48 @@ D_CASES = [
 ]
 
 
+def _fc(text, href, onclick=False):
+    return {"reach_path": "focused-control", "action_name": text,
+            "aux": {"tag": "a", "href": href, "onclick_attr": onclick}}
+
+
+def _form(action, method="get", js=False, text="Search"):
+    return {"reach_path": "enter-submit", "action_name": text,
+            "aux": {"method": method, "action": action, "js_submit_handler_present": js}}
+
+
+# (설명, 레코드, 기대 규칙 또는 None)
+PRE_CASES = [
+    ("상품 링크 → C1", _fc("Soundcore P30i", "https://www.amazon.com/Soundcore-P30i/dp/B0ABC"), "R-link"),
+    ("사이트명 'Best Buy' 링크 (텍스트 오탐이어도 URL 정상) → C1", _fc("Best Buy Home", "https://www.bestbuy.com/"), "R-link"),
+    ("Add to cart 텍스트 링크 → 자동 라벨 안 함", _fc("Add to cart", "https://shop.example/p/1"), None),
+    ("Buy Now → 자동 라벨 안 함", _fc("Buy Now", "https://shop.example/p/1"), None),
+    ("로그아웃 URL → 자동 라벨 안 함", _fc("Account", "https://shop.example/account/logout"), None),
+    ("장바구니 삭제 URL → 자동 라벨 안 함", _fc("x", "https://shop.example/cart/remove?id=3"), None),
+    ("javascript: 링크 → 자동 라벨 안 함", _fc("More", "javascript:void(0)"), None),
+    ("같은 페이지 앵커 → 자동 라벨 안 함", _fc("Top", "https://shop.example/#top"), None),
+    ("인라인 onclick 링크 → 자동 라벨 안 함", _fc("Deals", "https://shop.example/deals", onclick=True), None),
+    ("GET 폼, JS 핸들러 없음 → C1", _form("https://www.amazon.com/s/ref=nb_sb_noss"), "R-form"),
+    ("GET 검색 폼, JS 핸들러 있음 → C1(low)", _form("https://www.coupang.com/np/search", js=True), "R-search"),
+    ("GET 비검색 폼, JS 핸들러 있음 → 자동 라벨 안 함", _form("https://www.target.com/cart", js=True), None),
+    ("POST 폼 → 자동 라벨 안 함", _form("https://shop.example/s", method="post"), None),
+    ("GET 로그인 폼 → 자동 라벨 안 함", _form("https://shop.example/signin"), None),
+    ("hotkey → 자동 라벨 안 함", {"reach_path": "hotkey", "action_name": "keydown", "aux": {}}, None),
+    ("입력칸 포커스 accesskey → C1", {"reach_path": "accesskey", "action_name": "검색",
+                                      "aux": {"activation": "focus(estimated)", "accesskey": "s"}}, "R-akey"),
+    ("클릭 accesskey → 자동 라벨 안 함", {"reach_path": "accesskey", "action_name": "구매",
+                                       "aux": {"activation": "click(estimated)", "accesskey": "b"}}, None),
+]
+
+
 def main():
     fails = 0
+    for desc, rec, exp in PRE_CASES:
+        pl = prelabel(rec)
+        got = pl["notes"].split("]")[0].lstrip("[") if pl else None
+        ok = got == exp and (pl is None or consequence_tier(pl) == "C1")
+        fails += not ok
+        print(f"[{'PASS' if ok else 'FAIL'}] PRE {desc}: {got} (expect {exp})")
     for desc, row, exp in C_CASES:
         got = consequence_tier(row)
         ok = got == exp
@@ -59,7 +99,7 @@ def main():
         ok = is_danger_cell(st) is exp
         fails += not ok
         print(f"[{'PASS' if ok else 'FAIL'}] is_danger_cell({st}) = {is_danger_cell(st)}")
-    total = len(C_CASES) + len(D_CASES) + 4
+    total = len(PRE_CASES) + len(C_CASES) + len(D_CASES) + 4
     print(f"\n{total - fails}/{total} checks passed")
     return 1 if fails else 0
 

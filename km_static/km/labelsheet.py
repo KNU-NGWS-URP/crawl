@@ -130,6 +130,76 @@ def is_danger_cell(status: str):
     return {"confirmed": True, "excluded": False}.get(status)
 
 
+# ------------------------------------------------------------------ 자동 사전 라벨 (뻔한 C1)
+# 정적 근거만으로 '페이지 이동·포커스 이동'(정의서 B.4 → C1)이라고 볼 수 있는 경우에만 채운다.
+# C3·V 등급은 자동으로 정하지 않는다 (정의서 2장·Appendix C: 이름·정적 신호만으로 확정하지 않음).
+# 자동 라벨은 reviewer=auto-prelabel 로 표시하며, 사람이 표본 검토한다.
+import re  # noqa: E402
+from urllib.parse import urlparse  # noqa: E402
+
+PRELABEL_REVIEWER = "auto-prelabel"
+# URL 경로·쿼리에 이 단어가 있으면 GET 이라도 부수효과가 있을 수 있으므로 자동 라벨하지 않는다
+SIDE_EFFECT_URL_RX = re.compile(
+    r"(?<![a-z])(log-?out|sign-?out|log-?in|sign-?in|sign-?up|register|auth|account|identity|passport|"
+    r"delete|remove|cancel|unsubscribe|subscribe|checkout|buy|purchase|order|orders|pay|payment|"
+    r"add-?to-?cart|add_to_cart|addtocart|cart|basket|bag|koszyk|confirm|transfer|send|share|"
+    r"coupon|claim|redeem|vote|follow|wishlist|favorite)(?![a-z])", re.IGNORECASE)
+# 텍스트가 이런 동작이면 링크라도 클릭 핸들러가 기본 동작을 막고 실행할 수 있으므로 자동 라벨하지 않는다
+STRONG_ACTION_TEXT_RX = re.compile(
+    r"add to (cart|bag|basket)|buy now|buy it now|place (your )?order|check ?out|proceed to|pay now|"
+    r"delete|remove|unsubscribe|cancel order|sign out|log ?out|"
+    r"장바구니 ?담기|바로 ?구매|구매하기|결제하기|주문하기|삭제|로그아웃|"
+    r"カートに入れる|購入|加入购物车|立即购买|в корзину|купить|do koszyka|kup teraz", re.IGNORECASE)
+SEARCH_URL_RX = re.compile(r"(?<![a-z])(search|searchpage|sch|s|find|query|wholesale)(?![a-z])", re.IGNORECASE)
+
+
+def _url_rest(u: str) -> str:
+    p = urlparse(u or "")
+    return f"{p.path}?{p.query}"
+
+
+def prelabel(r: dict) -> dict | None:
+    """레코드 하나에 대해 자동 C1 사전 라벨을 반환한다. 해당 없으면 None."""
+    aux = r.get("aux") or {}
+    rp = r.get("reach_path")
+    text = " ".join(str(x) for x in (r.get("action_name"), aux.get("default_button_text")) if x)
+    if STRONG_ACTION_TEXT_RX.search(text or ""):
+        return None
+    base = {"P1": "N", "P2": "N", "P3": "N", "P4": "N", "S": "N", "E": "Y", "reviewer": PRELABEL_REVIEWER}
+
+    if rp == "enter-submit":
+        method = (aux.get("method") or "get").lower()
+        action = aux.get("action") or ""
+        if method != "get" or SIDE_EFFECT_URL_RX.search(_url_rest(action)):
+            return None
+        if not aux.get("js_submit_handler_present"):
+            return {**base, "evidence_source": "static-form", "confidence": "medium", "evidence_ref": action,
+                    "notes": "[R-form] GET 폼, JS submit 핸들러 없음 → 제출은 페이지 이동 (정의서 B.4 C1)"}
+        if SEARCH_URL_RX.search(urlparse(action).path):
+            return {**base, "evidence_source": "static-form", "confidence": "low", "evidence_ref": action,
+                    "notes": "[R-search] GET 검색 폼 (JS submit 핸들러 있음) → 검색 결과 이동으로 추정 (C1, 핸들러 동작 미확인)"}
+        return None
+
+    if rp == "focused-control" and aux.get("tag") == "a":
+        href = aux.get("href") or ""
+        p = urlparse(href)
+        if p.scheme not in ("http", "https") or aux.get("onclick_attr"):
+            return None
+        if not p.path.strip("/") and not p.query and p.fragment:
+            return None  # 같은 페이지 앵커(#...)는 JS 처리일 수 있음
+        if SIDE_EFFECT_URL_RX.search(_url_rest(href)):
+            return None
+        return {**base, "evidence_source": "static-dom", "confidence": "medium", "evidence_ref": href,
+                "notes": "[R-link] 일반 링크(href, 인라인 onclick 없음, 부수효과 URL·문구 없음) → 페이지 이동 (C1). "
+                         "addEventListener 클릭 핸들러는 정적으로 확인 못 함"}
+
+    if rp == "accesskey" and (aux.get("activation") or "").startswith("focus"):
+        return {**base, "evidence_source": "static-accesskey", "confidence": "medium",
+                "evidence_ref": f"accesskey={aux.get('accesskey')}",
+                "notes": "[R-akey] 입력칸으로 포커스만 이동하는 accesskey → 화면상 포커스 변화 (C1)"}
+    return None
+
+
 # 엑셀에서 입력 즉시 보이도록 같은 규칙을 수식으로도 넣는다 (최종 값은 apply 가 Python 규칙으로 다시 계산)
 def _c_formula(r: int) -> str:
     c = lambda n: f"{get_column_letter(IDX[n])}{r}"  # noqa: E731
@@ -228,6 +298,8 @@ def cmd_export(args):
     ws.freeze_panes = ws.cell(row=2, column=IDX["action_name"] + 1)
 
     n_carried = 0
+    n_pre = 0
+    rules: Counter = Counter()
     for ri, k in enumerate(keys, start=2):
         g = groups[k]
         r0 = g[0]
@@ -240,13 +312,20 @@ def cmd_export(args):
             "snapshot": f'snapshots/{r0["site"]}/{views[0]}.png',
             "action_label": r0.get("action_label") or "",
         }
-        if k in prev:
+        if k in prev and touched(prev[k]):
+            # 이전 시트 입력이 있으면 그대로 이어받는다 (사람이 고친 값이 자동 라벨보다 우선)
             n_carried += 1
             for name, *_ in INPUTS:
                 if name in ("C_auto", "danger_auto"):
                     continue
                 if prev[k].get(name) not in (None, ""):
                     vals[name] = prev[k][name]
+        elif not args.no_prelabel:
+            pl = prelabel(r0)
+            if pl:
+                n_pre += 1
+                rules[pl["notes"].split("]")[0].lstrip("[")] += 1
+                vals.update(pl)
         for name, *_ in COLS:
             if name in vals:
                 ws.cell(row=ri, column=IDX[name], value=vals[name])
@@ -298,7 +377,8 @@ def cmd_export(args):
                          f"이어받거나 --force 로 덮어쓴다.")
     wb.save(out)
     c = Counter(groups[k][0]["reach_path"] for k in keys)
-    print(f"[labelsheet] {len(keys)} rows ({dict(c)}), carried over {n_carried} -> {out}")
+    print(f"[labelsheet] {len(keys)} rows ({dict(c)}), carried over {n_carried}, "
+          f"auto C1 prelabel {n_pre} {dict(rules)} -> {out}")
 
 
 # ------------------------------------------------------------------ apply
@@ -389,6 +469,10 @@ def write_summary(data: Path, sheet: list[dict], by_key: dict, out_dir: Path):
     lines = [
         "# ③ 수동 라벨 요약 (내부 자료 — 사이트별 수치 포함, 공개 금지)", "",
         f"- 시트 행(후보 액션): {len(rows)} / 라벨 입력된 행: {len(labeled)} / 미입력: {len(rows) - len(labeled)}",
+        f"- 라벨 출처: 자동 사전 라벨(C1, reviewer={PRELABEL_REVIEWER}) "
+        f"{sum(1 for _, r in labeled if _clean(r.get('reviewer')) == PRELABEL_REVIEWER)} / 사람 입력 "
+        f"{sum(1 for _, r in labeled if _clean(r.get('reviewer')) != PRELABEL_REVIEWER)}"
+        " — 자동 라벨은 표본 검토 후 reviewer 를 사람 이름으로 바꾼다",
         "- 집계 단위: 시트 행 = 사이트·action_id·도달 경로·출력 키 조합 (정의서 5장 레코드 단위)", "",
         "## 결과 등급 × 확인 등급 (라벨 입력된 행)", "",
         "| C \\ V | " + " | ".join(V) + " | 계 |", "|" + "---|" * (len(V) + 2),
@@ -453,6 +537,7 @@ def main(argv=None):
     e.add_argument("--out", type=Path)
     e.add_argument("--prev", type=Path, help="이전 시트의 입력값을 row_key 기준으로 이어받음")
     e.add_argument("--force", action="store_true")
+    e.add_argument("--no-prelabel", action="store_true", help="뻔한 C1 자동 사전 라벨을 채우지 않음")
     a = sub.add_parser("apply")
     a.add_argument("--data", default=Path("data"), type=Path)
     a.add_argument("--sheet", required=True, type=Path)

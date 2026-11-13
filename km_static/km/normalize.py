@@ -303,8 +303,9 @@ def process_view(raw_path: Path, data_dir: Path, category: str) -> tuple[list[di
                   focus=f"keyboard focus on control {c.get('css_path')} (Tab order estimated={c.get('tab_focusable_estimated')})",
                   frame_is_top=top,
                   aux={"tab_focusable_estimated": c.get("tab_focusable_estimated"), "within_form": c.get("within_form"),
-                       "tag": c.get("tag"), "role": c.get("role"), "css_path": c.get("css_path"),
-                       "blocked_suspected": blocked_note})
+                       "tag": c.get("tag"), "role": c.get("role"), "type": c.get("type"), "href": c.get("href"),
+                       "link_target": c.get("link_target"), "onclick_attr": c.get("onclick_attr"),
+                       "css_path": c.get("css_path"), "blocked_suspected": blocked_note})
 
     cdp = raw.get("cdp_listeners") or {}
     if cdp.get("ok"):
