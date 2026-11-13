@@ -43,7 +43,7 @@ KEY_EVENT_TYPES = {"keydown", "keyup", "keypress", "submit"}
 BLOCK_RX = re.compile(
     r"captcha|access denied|are you a (robot|human)|robot or human|pardon our interruption|"
     r"unusual traffic|unusual (browser )?activity|confirm (that )?you('|’)?re (a )?human|verify (that )?you are (a )?human|"
-    r"i am human|press (&|and) hold|request blocked|bot detection|"
+    r"i am human|press (&|and) hold|request blocked|bot detection|click the button below to continue shopping|"
     r"보안문자|보안 문자|자동입력 방지|비정상적인 (접근|요청)|접근이 (차단|제한)",
     re.IGNORECASE,
 )

@@ -138,6 +138,7 @@ import re  # noqa: E402
 from urllib.parse import urlparse  # noqa: E402
 
 PRELABEL_REVIEWER = "auto-prelabel"
+DRAFT_REVIEWER = "claude-draft"  # 행별 근거를 보고 쓴 초안 — 사람 검토 전에는 확정 라벨이 아님
 # URL 경로·쿼리에 이 단어가 있으면 GET 이라도 부수효과가 있을 수 있으므로 자동 라벨하지 않는다
 SIDE_EFFECT_URL_RX = re.compile(
     r"(?<![a-z])(log-?out|sign-?out|log-?in|sign-?in|sign-?up|register|auth|account|identity|passport|"
@@ -457,10 +458,20 @@ def write_summary(data: Path, sheet: list[dict], by_key: dict, out_dir: Path):
     labeled = [(k, r) for k, r in rows if by_key[k]["_touched"]]
     C = ["C3", "C2", "C1", "C0", "unknown"]
     V = ["V0", "V1", "V2", "unknown"]
-    xt = Counter((by_key[k]["consequence_tier"], by_key[k]["confirmation_tier"]) for k, _ in labeled)
-    ds = Counter(by_key[k]["danger_status"] for k, _ in labeled)
+
+    def source(k, r):
+        if not by_key[k]["_touched"]:
+            return "미입력"
+        rv = _clean(r.get("reviewer"))
+        return "자동" if rv == PRELABEL_REVIEWER else "초안" if rv == DRAFT_REVIEWER else "사람"
+
+    # 표는 시트 전체 행을 센다. 미입력 행은 판정 근거가 없으므로 C=unknown, V=unknown, unresolved 로 집계된다.
+    xt = Counter((by_key[k]["consequence_tier"], by_key[k]["confirmation_tier"]) for k, _ in rows)
+    c_src = Counter((by_key[k]["consequence_tier"], source(k, r)) for k, r in rows)
+    ds = Counter(by_key[k]["danger_status"] for k, _ in rows)
+    ds_src = Counter((by_key[k]["danger_status"], source(k, r)) for k, r in rows)
     site_ds = defaultdict(Counter)
-    for k, r in labeled:
+    for k, r in rows:
         site_ds[r["site"]][by_key[k]["danger_status"]] += 1
 
     st = ok_views(data)
@@ -469,20 +480,31 @@ def write_summary(data: Path, sheet: list[dict], by_key: dict, out_dir: Path):
     lines = [
         "# ③ 수동 라벨 요약 (내부 자료 — 사이트별 수치 포함, 공개 금지)", "",
         f"- 시트 행(후보 액션): {len(rows)} / 라벨 입력된 행: {len(labeled)} / 미입력: {len(rows) - len(labeled)}",
-        f"- 라벨 출처: 자동 사전 라벨(C1, reviewer={PRELABEL_REVIEWER}) "
-        f"{sum(1 for _, r in labeled if _clean(r.get('reviewer')) == PRELABEL_REVIEWER)} / 사람 입력 "
-        f"{sum(1 for _, r in labeled if _clean(r.get('reviewer')) != PRELABEL_REVIEWER)}"
-        " — 자동 라벨은 표본 검토 후 reviewer 를 사람 이름으로 바꾼다",
-        "- 집계 단위: 시트 행 = 사이트·action_id·도달 경로·출력 키 조합 (정의서 5장 레코드 단위)", "",
-        "## 결과 등급 × 확인 등급 (라벨 입력된 행)", "",
+        f"- 라벨 출처: 자동 사전 라벨(reviewer={PRELABEL_REVIEWER}) "
+        f"{sum(1 for k, r in rows if source(k, r) == '자동')} / 초안(reviewer={DRAFT_REVIEWER}) "
+        f"{sum(1 for k, r in rows if source(k, r) == '초안')} / 사람 입력 "
+        f"{sum(1 for k, r in rows if source(k, r) == '사람')}"
+        " — 자동·초안 라벨은 검토 후 reviewer 를 사람 이름으로 바꾼다",
+        "- 집계 단위: 시트 행 = 사이트·action_id·도달 경로·출력 키 조합 (정의서 5장 레코드 단위)",
+        "- C 와 V 는 독립된 두 축이다. 각 축의 unknown 은 그 축의 판정 근거가 없다는 뜻이다 "
+        "(C: 실제 효과 미확인, V: 확인 절차 미관측 — Tier 1 은 동작을 실행하지 않으므로 V 는 원칙적으로 unknown).", "",
+        f"## 결과 등급 × 확인 등급 (시트 전체 {len(rows)}행, 미입력 행 포함)", "",
         "| C \\ V | " + " | ".join(V) + " | 계 |", "|" + "---|" * (len(V) + 2),
     ]
     for c in C:
         cnt = [xt.get((c, v), 0) for v in V]
         lines.append(f"| {c} | " + " | ".join(map(str, cnt)) + f" | {sum(cnt)} |")
-    lines += ["", "## 위험 셀 판정 상태", "",
-              "| danger_status | 행 수 |", "|---|---|"]
-    lines += [f"| {k} | {ds.get(k, 0)} |" for k in ("confirmed", "candidate", "excluded", "unresolved")]
+    srcs = ["자동", "초안", "사람", "미입력"]
+    lines += ["", "## 결과 등급 × 판정 출처", "",
+              "| C | 자동 사전 라벨 | 초안 | 사람 입력 | 미입력 | 계 |", "|---|---|---|---|---|---|"]
+    for c in C:
+        cnt = [c_src.get((c, s), 0) for s in srcs]
+        lines.append(f"| {c} | " + " | ".join(map(str, cnt)) + f" | {sum(cnt)} |")
+    lines += ["", "## 위험 셀 판정 상태 (시트 전체)", "",
+              "| danger_status | 자동 | 초안 | 사람 | 미입력 | 계 |", "|---|---|---|---|---|---|"]
+    for k in ("confirmed", "candidate", "excluded", "unresolved"):
+        cnt = [ds_src.get((k, s), 0) for s in srcs]
+        lines.append(f"| {k} | " + " | ".join(map(str, cnt)) + f" | {ds.get(k, 0)} |")
     lines += ["", "## 사이트별 (분모 포함)", "",
               "| site | confirmed | candidate | excluded | unresolved | 미입력 행 | 미수집 화면 있음 | 판단 |",
               "|---|---|---|---|---|---|---|---|"]

@@ -47,7 +47,9 @@ def main(argv=None):
             continue
         # 본문 전체(body_probe)가 없는 옛 수집분은 1500자 샘플만 남아 있어, 처음 판정 때 본 차단 문구가 빠져 있을 수 있다.
         # 이 경우 blocked_suspected 를 풀지 않는다 (차단을 정상으로 잘못 되돌리지 않기 위해).
-        if m.get("status") == "blocked_suspected" and not m.get("body_probe"):
+        # body_probe 도 앞 3000자로 잘려 있어 (수집 시 판정은 30000자 기준) 뒤쪽 캡차 문구(예: walmart PX 'Robot or human')가 빠진다.
+        # 따라서 재판정은 blocked_suspected 를 절대 풀지 않는다 — 다른 상태를 차단으로 올리는 방향만 허용.
+        if m.get("status") == "blocked_suspected":
             continue
         st, reasons = classify_status(m.get("view", fp.stem), m.get("requested_url", ""), m.get("final_url", ""),
                                       m.get("http_status"), m.get("title", ""), body_of(raw))
