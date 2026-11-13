@@ -1,6 +1,6 @@
 # km_static — Tier 1 Static Analyzer 프로토타입 (커머스 파일럿)
 
-정의서 V1와 연구 계획 v1 구현 순서 ② "소규모 코퍼스 + Static Analyzer 프로토타입"의 구현이다.
+정의서 V1과 연구 계획 v1 구현 순서 ② "소규모 코퍼스 + Static Analyzer 프로토타입"의 구현이다.
 커머스 사이트 10~20개에서 accesskey, Enter 암묵적 제출 폼, 키 핸들러 수집이 되는지 확인하는 것이 목적이다.
 
 ## 윤리 가드 (코드로 강제)
