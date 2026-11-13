@@ -1,4 +1,4 @@
-"""tests/test_labelsheet.py — 정의서 V2 판정 규칙(C 등급·위험 셀 상태)이 의도대로 계산되는지 검사한다.
+"""tests/test_labelsheet.py — 정의서 V1 판정 규칙(C 등급·위험 셀 상태)이 의도대로 계산되는지 검사한다.
 
 실행:  python -m tests.test_labelsheet   (외부 접속 없음)
 """

@@ -1,7 +1,7 @@
 """km/labelsheet.py — ③ 수동 라벨링: 결과 등급(C)·확인 등급(V) 입력 시트 생성과 반영.
 
 Tier 1 레코드는 정의서대로 C/V가 모두 unknown 이다. 이 모듈은 사람이 근거를 보고 판정을 입력할 수 있도록
-후보 액션만 추린 엑셀 시트를 만들고, 입력값을 정의서 V2 규칙으로 계산해 레코드에 반영한다.
+후보 액션만 추린 엑셀 시트를 만들고, 입력값을 정의서 V1 규칙으로 계산해 레코드에 반영한다.
 
 실행:
     python -m km.labelsheet export --data data_run1                       # → data_run1/labels/label_sheet.xlsx
@@ -9,7 +9,7 @@ Tier 1 레코드는 정의서대로 C/V가 모두 unknown 이다. 이 모듈은 
     python -m km.labelsheet apply  --data data_run1 --sheet data_run1/labels/label_sheet.xlsx
     python -m km.labelsheet agree  --a 라벨러A.xlsx --b 라벨러B.xlsx       # 라벨러 간 일치도 (Cohen's kappa)
 
-판정 규칙 (정의서 V2):
+판정 규칙 (정의서 V1):
   - 술어 P1~P4, S, R1~R3, E 는 Y(근거 있음: 참) / N(근거 있음: 거짓) / 빈칸(근거 부족)으로 입력한다.
     빈칸을 N 으로 간주하지 않는다 (¬K(φ) ⇏ K(¬φ)).
   - C(a): 위에서 아래로 첫 번째로 충족한 절

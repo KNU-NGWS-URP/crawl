@@ -1,4 +1,4 @@
-"""km/normalize.py — raw 수집 결과를 정의서 V2 Appendix D 라벨 스키마 레코드로 변환한다.
+"""km/normalize.py — raw 수집 결과를 정의서 V1 Appendix D 라벨 스키마 레코드로 변환한다.
 
 실행:
     python -m km.normalize --data data

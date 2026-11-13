@@ -1,4 +1,4 @@
-"""km/labels.py — 정의서 V2 Appendix E 기반 action_label 1차 추정.
+"""km/labels.py — 정의서 V1 Appendix E 기반 action_label 1차 추정.
 
 - 키워드 매칭은 1차 추정일 뿐이며 결과 등급·확인 등급을 확정하지 않는다 (Appendix E.2).
 - 'post', 'submit'처럼 텍스트만으로 유형 구분이 어려운 표현은 자동 분류를 보류(None)하고
