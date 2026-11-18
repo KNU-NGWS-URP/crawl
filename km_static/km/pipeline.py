@@ -10,6 +10,9 @@
   # 일부 사이트만 시험
   python -m km.pipeline --categories social --sites reddit.com,medium.com --channel chrome
 
+  # 중간에 멈췄으면 이어서 (coverage 에 모든 화면이 기록된 사이트는 건너뜀)
+  python -m km.pipeline --categories social,productivity,cloud --channel chrome --resume ...
+
   # 이미 수집한 결과의 후처리만 다시 (재수집 없음)
   python -m km.pipeline --categories social --post-only
 
@@ -52,6 +55,12 @@ def main(argv=None):
     ap.add_argument("--post-only", action="store_true", help="수집 없이 후처리만")
     ap.add_argument("--skip-post", action="store_true", help="수집만")
     args, collect_args = ap.parse_known_args(argv)  # 나머지 인자는 km.collect 로 그대로 전달
+    # 로그를 파일로 돌리면 Windows 기본 인코딩(cp949)이 되어 제목의 특수문자에서 멈춘다 → UTF-8, 못 쓰는 문자는 대체
+    for st in (sys.stdout, sys.stderr):
+        try:
+            st.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
 
     cats = [c.strip() for c in args.categories.split(",") if c.strip()]
     for cat in cats:

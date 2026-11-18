@@ -449,18 +449,39 @@ def main(argv=None):
     ap.add_argument("--site-gap", type=float, default=0.0, help="사이트 사이 추가 대기(초)")
     ap.add_argument("--max-blocks-per-site", type=int, default=0,
                     help="한 사이트에서 차단 의심 화면이 이 수에 도달하면 남은 화면을 접속하지 않고 skipped_after_block 으로 기록 (0=끄기)")
+    ap.add_argument("--resume", action="store_true",
+                    help="--out 의 기존 coverage 에 모든 화면이 기록된 사이트는 건너뜀 (긴 실행이 중간에 멈췄을 때)")
     ap.add_argument("--no-cdp", action="store_true")
     ap.add_argument("--save-scripts", action="store_true", help="스크립트 본문을 data/scripts 에 저장 (용량 큼)")
     args = ap.parse_args(argv)
+    # 로그를 파일로 돌리면 Windows 기본 인코딩(cp949)이 되어 제목의 특수문자에서 멈춘다 → UTF-8, 못 쓰는 문자는 대체
+    for st in (sys.stdout, sys.stderr):
+        try:
+            st.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
 
     corpus = load_corpus(args.corpus)
+    full_corpus = list(corpus)  # 화면 구성은 --sites 로 거르기 전 코퍼스 기준으로 정한다
     if args.sites:
         wanted = {s.strip() for s in args.sites.split(",") if s.strip()}
         corpus = [r for r in corpus if r["site"] in wanted]
     if args.views:
         views = [v.strip() for v in args.views.split(",") if v.strip()]
     else:
-        views = v1_views(corpus[0].get("category", "")) if corpus and "entry_url" in corpus[0] else VIEWS
+        views = (v1_views(full_corpus[0].get("category", ""))
+                 if full_corpus and "entry_url" in full_corpus[0] else VIEWS)
+    if args.resume:
+        seen: dict = {}
+        for fp in sorted((args.out / "coverage").glob("coverage_*.csv")):
+            if fp.stem.endswith("_reclass"):
+                continue
+            with fp.open(encoding="utf-8-sig") as f:
+                for r in csv.DictReader(f):
+                    seen.setdefault(r["site"], set()).add(r["view"])
+        done = {s for s, vs in seen.items() if set(views) <= vs}
+        print(f"[km] resume: 이미 끝난 사이트 {len(done)}개 건너뜀")
+        corpus = [r for r in corpus if r["site"] not in done]
     cats = sorted({r.get("category", "") for r in corpus})
     if len(cats) > 1:
         # 카테고리마다 결과 폴더를 나눈다: 같은 도메인이 여러 카테고리에 있으면 raw/{site}/ 가 서로 덮어쓰기 때문
