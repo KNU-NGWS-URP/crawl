@@ -12,16 +12,28 @@ import re
 
 PRIORITY = ["financial", "destructive", "transmission", "publication", "execution", "auth_change"]
 
-# Appendix E.1 매핑 키워드 예시 + 커머스 파일럿용 최소 보강(보강 항목은 주석으로 구분)
+# Appendix E.1 매핑 키워드 예시 + 커머스 파일럿·코퍼스 v1(social·productivity·cloud) 최소 보강 (보강 항목은 주석으로 구분)
 KEYWORDS: dict[str, list[str]] = {
     "financial": ["buy", "pay", "purchase", "checkout", "order", "결제", "구매", "주문",
                   # 보강: 커머스 화면의 흔한 변형
-                  "place order", "buy now", "바로구매", "바로 구매", "구매하기", "결제하기", "주문하기"],
-    "destructive": ["delete", "remove", "clear", "destroy", "삭제", "제거"],
-    "transmission": ["send", "transfer", "forward", "전송", "보내기", "이체"],
-    "publication": ["publish", "share", "broadcast", "게시", "공유", "발행"],
-    "execution": ["run", "deploy", "execute", "confirm", "merge", "실행", "배포", "승인"],
-    "auth_change": ["login", "log in", "sign in", "sign up", "logout", "log out", "로그인", "가입", "로그아웃"],
+                  "place order", "buy now", "바로구매", "바로 구매", "구매하기", "결제하기", "주문하기",
+                  # 보강(코퍼스 v1): 구독·결제수단
+                  "add payment method", "top up", "결제수단"],
+    "destructive": ["delete", "remove", "clear", "destroy", "삭제", "제거",
+                    # 보강(코퍼스 v1): 클라우드·저장소
+                    "terminate", "revoke", "empty trash", "영구 삭제", "删除"],
+    "transmission": ["send", "transfer", "forward", "전송", "보내기", "이체",
+                     # 보강(코퍼스 v1): 메신저·협업 초대
+                     "invite", "message", "초대", "메시지", "发送"],
+    "publication": ["publish", "share", "broadcast", "게시", "공유", "발행",
+                    # 보강(코퍼스 v1): SNS 게시·반응
+                    "tweet", "repost", "retweet", "reply", "comment", "upload", "댓글", "답글", "올리기", "发布", "投稿"],
+    "execution": ["run", "deploy", "execute", "confirm", "merge", "실행", "배포", "승인",
+                  # 보강(코퍼스 v1): 클라우드 콘솔
+                  "launch", "restart", "reboot", "rollback", "provision", "재시작"],
+    "auth_change": ["login", "log in", "sign in", "sign up", "logout", "log out", "로그인", "가입", "로그아웃",
+                    # 보강(코퍼스 v1): 계정 보안 설정
+                    "change password", "two-factor", "2fa", "비밀번호 변경", "register", "create account"],
 }
 # 자동 분류 보류 대상 (Appendix E.2)
 AMBIGUOUS = ["post", "submit"]

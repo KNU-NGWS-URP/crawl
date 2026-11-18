@@ -83,9 +83,15 @@ def main(argv=None):
             s = by_site_view.get((r["site"], "search"))
             if s and s["status"] != "ok":
                 r["status"] = "skipped_search_failed"
+        # 코퍼스 v1: entry 화면이 수집 실패로 바뀌었으면 login·signup 의 not_found 도 skipped_entry_failed 로 맞춘다
+        if r["view"] in ("login", "signup") and r["status"] == "not_found":
+            e = by_site_view.get((r["site"], "entry"))
+            if e and e["status"] not in ("ok", "login_redirect"):
+                r["status"] = "skipped_entry_failed"
     out = src.with_name(src.stem + "_reclass.csv")
+    fields = list(dict.fromkeys(k for r in rows for k in r))  # 실행마다 칸이 다를 수 있음 (예: url_source 추가 전 실행분)
     with out.open("w", encoding="utf-8-sig", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        w = csv.DictWriter(f, fieldnames=fields, restval="")
         w.writeheader()
         w.writerows(rows)
     print(f"[reclassify] {len(changed)} views checked -> {out}")

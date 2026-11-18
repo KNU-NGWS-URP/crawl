@@ -21,7 +21,7 @@ import random
 from collections import Counter, defaultdict
 from pathlib import Path
 
-VIEWS = ["home", "search", "product", "cart", "login"]
+VIEW_ORDER = ["entry", "home", "search", "product", "cart", "login", "signup", "explore", "pricing", "content", "features"]  # 실제 화면 목록은 coverage 에서 읽음
 REACH = ["accesskey", "enter-submit", "hotkey", "focused-control", "unknown"]
 
 
@@ -73,11 +73,13 @@ def main(argv=None):
 
     # 1) 커버리지 행렬
     cmat = {(r["site"], r["view"]): r["status"] for r in cov}
+    present = {v for (_, v) in cmat}
+    views = [v for v in VIEW_ORDER if v in present] + sorted(present - set(VIEW_ORDER))
     with (rep / "coverage_matrix.csv").open("w", encoding="utf-8-sig", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["site"] + VIEWS + ["n_ok_views"])
+        w.writerow(["site"] + views + ["n_ok_views"])
         for s in sites:
-            st = [cmat.get((s, v), "-") for v in VIEWS]
+            st = [cmat.get((s, v), "-") for v in views]
             w.writerow([s] + st + [sum(x == "ok" for x in st)])
     status_counts = Counter(r["status"] for r in cov)
 
@@ -112,7 +114,7 @@ def main(argv=None):
 
     # 4) 수동 점검 시트
     rng = random.Random(args.seed)
-    ok_sites = [s for s in sites if any(cmat.get((s, v)) == "ok" for v in VIEWS)]
+    ok_sites = [s for s in sites if any(cmat.get((s, v)) == "ok" for v in views)]
     pick = sorted(rng.sample(ok_sites, min(args.manual_sites, len(ok_sites))))
     manual = []
     for s in pick:
@@ -155,11 +157,15 @@ def main(argv=None):
     label_counts = Counter(r["action_label"] or "(none)" for r in recs)
     sites_with = {rp: len({s for s, _ in rp_uniq[rp]}) for rp in REACH}
 
-    lines = ["# Tier 1 커머스 파일럿 요약", "",
+    n_dup = sum(r["status"] in ("same_as_entry", "not_needed") for r in cov)
+    cats_cov = sorted({r.get("category") or "" for r in cov} - {""})
+    lines = [f"# Tier 1 정적 수집 요약 — {', '.join(cats_cov) or '(카테고리 미기재)'}", "",
              "> 이 수치는 정적 근거 수집량이다. 모든 레코드는 reachability=unknown, consequence/confirmation=unknown, "
              "danger_status=unresolved 상태이며 위험 셀 판정이 아니다.", "",
-             f"- 대상 사이트: {len(sites)} / 화면 시도: {len(cov)}",
-             f"- ok 화면이 1개 이상인 사이트: {sum(any(cmat.get((s, v)) == 'ok' for v in VIEWS) for s in sites)}",
+             f"- 대상 사이트: {len(sites)} / 화면 시도: {len(cov) - n_dup} "
+             f"(서로 다른 화면 기준. home=entry 로 합친 {sum(r['status'] == 'same_as_entry' for r in cov)}개, "
+             f"이미 5개라 접속 안 한 대체 화면 {sum(r['status'] == 'not_needed' for r in cov)}개 제외)",
+             f"- ok 화면이 1개 이상인 사이트: {sum(any(cmat.get((s, v)) == 'ok' for v in views) for s in sites)}",
              "- 수집 상태: " + ", ".join(f"{k}={v}" for k, v in sorted(status_counts.items())),
              f"- 집계 레코드: {len(recs)} (ok가 아닌 화면 — 차단·로그인 리다이렉트·중간 페이지 등 — 의 레코드 {n_blocked_recs}건은 미수집으로 보고 제외)", "",
              "## 도달 경로별", "",

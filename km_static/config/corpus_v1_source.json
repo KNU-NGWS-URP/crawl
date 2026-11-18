@@ -1,0 +1,23 @@
+{
+ "xlsx": "코퍼스 v1 후보 — 카테고리별 상위 50 (Tranco V38GN).xlsx",
+ "sha256": "4193697222d694cb51191445ef048c0817488a7bd281c5e31c869e387da0f9be",
+ "imported": "2026-11-18T15:15:44+09:00",
+ "rank_source": "Tranco V38GN",
+ "categories": {
+  "social": {
+   "file": "corpus_v1_social.csv",
+   "rows": 50,
+   "excluded": []
+  },
+  "productivity": {
+   "file": "corpus_v1_productivity.csv",
+   "rows": 50,
+   "excluded": []
+  },
+  "cloud": {
+   "file": "corpus_v1_cloud.csv",
+   "rows": 50,
+   "excluded": []
+  }
+ }
+}

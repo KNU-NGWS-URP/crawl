@@ -38,7 +38,82 @@ HERE = Path(__file__).resolve().parent
 INSTRUMENT_JS = (HERE / "instrument.js").read_text(encoding="utf-8")
 COLLECT_DOM_JS = (HERE / "collect_dom.js").read_text(encoding="utf-8")
 
-VIEWS = ["home", "search", "product", "cart", "login"]
+VIEWS = ["home", "search", "product", "cart", "login"]          # commerce 파일럿 (config/commerce_pilot.csv)
+# 코퍼스 v1 (config/corpus_v1_<category>.csv): 사이트당 서로 다른 화면 5개.
+#   공통: entry(진입 URL) / home / login / signup
+#   다섯 번째: social → explore (탐색·인기 피드), 그 밖 → pricing (요금제·구독 버튼)
+#   여섯 번째 후보(EXTRA): home 이 entry 와 같은 페이지(same_as_entry)일 때만 대신 수집해 5개를 채운다.
+#     social → content (공개 게시물·프로필 1개), 그 밖 → features (기능·제품 소개)
+V1_VIEWS_BY_CATEGORY = {"social": ["entry", "home", "login", "signup", "explore", "content"]}
+V1_VIEWS_DEFAULT = ["entry", "home", "login", "signup", "pricing", "features"]
+EXTRA_VIEWS = ("content", "features")
+DISCOVERED_VIEWS = ("login", "signup", "explore", "pricing", "content", "features")  # URL 이 비면 앞 화면 링크에서 찾음
+LINK_SOURCE_VIEWS = ("entry", "home", "explore")
+
+
+def v1_views(category: str) -> list[str]:
+    return V1_VIEWS_BY_CATEGORY.get(category, V1_VIEWS_DEFAULT)
+
+
+def same_page(a: str | None, b: str | None) -> bool:
+    """www. 와 끝 '/' 차이는 같은 페이지로 본다 (home 이 entry 와 같으면 다시 접속하지 않기 위해)."""
+    def norm(u):
+        q = urlparse(u or "")
+        return ((q.hostname or "").removeprefix("www."), q.path.rstrip("/"), q.query)
+    return bool(a and b) and norm(a) == norm(b)
+# entry 화면에서 로그인·가입 링크를 찾아 그 URL 로 이동한다 (클릭하지 않음). 짧은 링크 문구·aria-label·href 경로로 판단.
+AUTH_LINK_JS = r"""
+() => {
+  const LOGIN_T = /^\s*(log\s?-?in|sign\s?-?in|로그인|登录|登入|登錄|ログイン|войти|вход|zaloguj( się)?|entrar|logga in|anmelden|connexion|se connecter|iniciar sesi[oó]n|accedi)\b/i;
+  const SIGNUP_T = /^\s*(sign\s?-?up|register|create (an |your |a free )?account|join( now| free| us)?|get started( for free| free)?|try (it )?(for )?free|start (for )?free|회원\s?가입|가입하기|注册|註冊|新規(会員)?登録|会員登録|регистрация|зарегистрироваться|zarejestruj|cadastr|skapa konto|registrieren|s'inscrire|inscription|crear cuenta)/i;
+  const LOGIN_H = /\/(login|log-in|signin|sign-in|sign_in|logon)([\/?#._-]|$)/i;
+  const SIGNUP_H = /\/(signup|sign-up|sign_up|register|registration|join|create-account|createaccount)([\/?#._-]|$)/i;
+  const PRICING_T = /^\s*(pricing|plans( (&|and) pricing)?|compare plans|see plans|view plans|prices|요금(제)?|가격|价格|定价|价目|料金(プラン)?|тарифы|цены|cennik|preços|planos|priser)\b/i;
+  const EXPLORE_T = /^\s*(explore|trending|popular|discover|top|hot|best|탐색|둘러보기|인기|실시간|베스트|热门|发现|探索|热搜|話題|トレンド|ランキング|популярное|лучшее|обзор)/i;
+  const PRICING_H = /\/(pricing|plans|prices|tariffs?|tarif)([\/?#._-]|$)/i;
+  const EXPLORE_H = /\/(explore|trending|popular|discover|hot|best|top)([\/?#._-]|$)/i;
+  const FEATURES_T = /^\s*(features|products?|solutions|platform|templates|why [\w.]+|기능|제품|솔루션|템플릿|产品|功能|解决方案|機能|製品|возможности|продукты|решения)\b/i;
+  const FEATURES_H = /\/(features|products?|solutions|platform|templates)([\/?#._-]|$)/i;
+  // 공개 게시물·프로필: 같은 사이트 안의 게시물형 경로 (클릭하지 않고 URL 로 이동)
+  const CONTENT_H = /\/(status|statuses|comments|p|post|posts|video|videos|reel|reels|pin|story|stories|thread|threads|t|question|questions|answer|item|photos|shot|shots|gallery|works|artworks|book\/show|film|n|s|board|article|articles|topic|topics)\/[^\/?#]+|^\/@[\w.-]+\/?$/i;
+  const BAD = /(log\s?-?out|sign\s?-?out|logoff|выход|로그아웃|退出)/i;
+  const res = {login: null, signup: null, pricing: null, explore: null, features: null, content: null};
+  const host = location.hostname.replace(/^www\./, '');
+  const here = location.href.split('#')[0];
+  // 같은 페이지로 돌아오는 링크(href="#", "#top")는 다른 화면이 아니므로 제외
+  const samePage = (href) => href.split('#')[0] === here;
+  // 문구는 '구절 + 짧은 꼬리(20자 이내)'만 인정: "Sign up for free" O, "Join the community of IT pros" X
+  const fits = (re, t) => { const m = t.match(re); return !!m && (t.length - m[0].length) <= 20; };
+  for (const a of document.querySelectorAll('a[href]')) {
+    const href = a.href || '';
+    if (!/^https?:/i.test(href) || samePage(href)) continue;
+    const r = a.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) continue;
+    const t = ((a.innerText || '').trim() || a.getAttribute('aria-label') || a.title || '').replace(/\s+/g, ' ').slice(0, 60);
+    if (BAD.test(t) || BAD.test(href)) continue;
+    if (!res.login && fits(LOGIN_T, t)) { res.login = href; res.login_by = 'text:' + t; }
+    if (!res.signup && fits(SIGNUP_T, t)) { res.signup = href; res.signup_by = 'text:' + t; }
+    if (!res.pricing && fits(PRICING_T, t)) { res.pricing = href; res.pricing_by = 'text:' + t; }
+    if (!res.explore && fits(EXPLORE_T, t)) { res.explore = href; res.explore_by = 'text:' + t; }
+    if (!res.features && fits(FEATURES_T, t)) { res.features = href; res.features_by = 'text:' + t; }
+  }
+  for (const a of document.querySelectorAll('a[href]')) {   // 문구로 못 찾으면 href 경로로
+    const href = a.href || '';
+    if (!/^https?:/i.test(href) || BAD.test(href) || samePage(href)) continue;
+    let path = ''; try { path = new URL(href).pathname; } catch (e) { continue; }
+    if (!res.login && LOGIN_H.test(path)) { res.login = href; res.login_by = 'href'; }
+    if (!res.signup && SIGNUP_H.test(path)) { res.signup = href; res.signup_by = 'href'; }
+    if (!res.pricing && PRICING_H.test(path)) { res.pricing = href; res.pricing_by = 'href'; }
+    if (!res.explore && EXPLORE_H.test(path)) { res.explore = href; res.explore_by = 'href'; }
+    if (!res.features && FEATURES_H.test(path)) { res.features = href; res.features_by = 'href'; }
+    let h2 = ''; try { h2 = new URL(href).hostname.replace(/^www\./, ''); } catch (e) {}
+    if (!res.content && (h2 === host || h2.endsWith('.' + host) || host.endsWith('.' + h2)) && CONTENT_H.test(path)) {
+      res.content = href; res.content_by = 'href';
+    }
+  }
+  return res;
+}
+"""
 KEY_EVENT_TYPES = {"keydown", "keyup", "keypress", "submit"}
 BLOCK_RX = re.compile(
     r"captcha|access denied|are you a (robot|human)|robot or human|pardon our interruption|"
@@ -249,6 +324,7 @@ def collect_view(context, site: str, view: str, url: str, out_dir: Path, scripts
     probe = CdpListenerProbe(context, page) if not args.no_cdp else None
     result = {"meta": meta}
     product_url = None
+    auth_links = {}
     try:
         resp = page.goto(url, wait_until="domcontentloaded", timeout=args.nav_timeout * 1000)
         meta["http_status"] = resp.status if resp else None
@@ -306,6 +382,12 @@ def collect_view(context, site: str, view: str, url: str, out_dir: Path, scripts
 
         if view == "search" and status == "ok":
             product_url = find_product_url(page, args._product_pattern)
+        if view in LINK_SOURCE_VIEWS and status in ("ok", "login_redirect"):
+            try:
+                auth_links = page.evaluate(AUTH_LINK_JS) or {}
+            except PWError:
+                auth_links = {}
+            meta["auth_links"] = auth_links
     except PWTimeout as e:
         meta["status"] = "timeout"
         meta["error"] = str(e)[:300]
@@ -326,7 +408,7 @@ def collect_view(context, site: str, view: str, url: str, out_dir: Path, scripts
     raw_dir = out_dir / "raw" / safe_name(site)
     raw_dir.mkdir(parents=True, exist_ok=True)
     (raw_dir / f"{view}.json").write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")
-    return {"meta": meta, "product_url": product_url}
+    return {"meta": meta, "product_url": product_url, "auth_links": auth_links}
 
 
 def build_urls(row: dict, keyword: str) -> dict:
@@ -337,6 +419,12 @@ def build_urls(row: dict, keyword: str) -> dict:
         "cart": row.get("cart_url") or None,
         "login": row.get("login_url") or None,
         "product": row.get("product_url") or None,  # 비어 있으면 검색 결과에서 자동 탐색
+        "entry": row.get("entry_url") or None,
+        "signup": row.get("signup_url") or None,     # 코퍼스 v1: 비어 있으면 entry·home 화면에서 자동 탐색
+        "explore": row.get("explore_url") or None,
+        "pricing": row.get("pricing_url") or None,
+        "content": row.get("content_url") or None,
+        "features": row.get("features_url") or None,
     }
     return urls
 
@@ -346,7 +434,10 @@ def main(argv=None):
     ap.add_argument("--corpus", required=True, type=Path)
     ap.add_argument("--out", default=Path("data"), type=Path)
     ap.add_argument("--sites", default="", help="쉼표로 구분한 site 필터")
-    ap.add_argument("--views", default=",".join(VIEWS))
+    ap.add_argument("--views", default=None,
+                    help="쉼표 구분. 미지정 시 corpus 에 entry_url 칸이 있으면 코퍼스 v1 화면 "
+                         "(social: entry,home,login,signup,explore[,content] / 그 밖: entry,home,login,signup,pricing[,features]; "
+                         "괄호 안 화면은 home 이 entry 와 같을 때만), 없으면 commerce 화면")
     ap.add_argument("--headless", action="store_true", help="기본은 headed (봇 차단 완화·관찰 용이)")
     ap.add_argument("--channel", default=None, help="chrome / msedge (설치된 브라우저 사용). 미지정 시 Playwright Chromium")
     ap.add_argument("--keyword", default="이어폰", help="search_keyword가 비어 있을 때의 기본 검색어")
@@ -366,7 +457,15 @@ def main(argv=None):
     if args.sites:
         wanted = {s.strip() for s in args.sites.split(",") if s.strip()}
         corpus = [r for r in corpus if r["site"] in wanted]
-    views = [v.strip() for v in args.views.split(",") if v.strip()]
+    if args.views:
+        views = [v.strip() for v in args.views.split(",") if v.strip()]
+    else:
+        views = v1_views(corpus[0].get("category", "")) if corpus and "entry_url" in corpus[0] else VIEWS
+    cats = sorted({r.get("category", "") for r in corpus})
+    if len(cats) > 1:
+        # 카테고리마다 결과 폴더를 나눈다: 같은 도메인이 여러 카테고리에 있으면 raw/{site}/ 가 서로 덮어쓰기 때문
+        raise SystemExit(f"[km] corpus 에 카테고리가 여러 개({cats}) — 카테고리별 CSV 와 --out 으로 나눠 실행하세요 "
+                         "(km.pipeline 이 자동으로 나눔)")
     out = args.out
     (out / "coverage").mkdir(parents=True, exist_ok=True)
     scripts_dir = out / "scripts"
@@ -412,15 +511,27 @@ def main(argv=None):
             args._browser_version = browser.version
             args._locale = locale
             urls = build_urls(row, args.keyword)
+            url_src = {v: "config" for v, u in urls.items() if u}
             args._product_pattern = row.get("product_href_pattern") or ""
             for view in views:
                 url = urls.get(view)
+                if view in EXTRA_VIEWS:
+                    home_st = next((c["status"] for c in coverage_rows if c["site"] == site and c["view"] == "home"), None)
+                    if home_st != "same_as_entry":  # home 이 따로 있으면 이미 서로 다른 화면 5개 → 접속하지 않음
+                        coverage_rows.append({"run_id": run_id, "site": site, "category": row.get("category", ""),
+                                              "view": view, "status": "not_needed", "requested_url": "",
+                                              "final_url": "", "http_status": "", "title": "", "error": "",
+                                              "browser_version": browser.version,
+                                              "snapshot_date": dt.date.today().isoformat(), "url_source": ""})
+                        print(f"  - {site}/{view}: not_needed (home={home_st})")
+                        continue
                 if args.max_blocks_per_site and n_blocked >= args.max_blocks_per_site:
                     coverage_rows.append({"run_id": run_id, "site": site, "category": row.get("category", ""),
                                           "view": view, "status": "skipped_after_block", "requested_url": url or "",
                                           "final_url": "", "http_status": "", "title": "", "error": "",
                                           "browser_version": browser.version,
-                                          "snapshot_date": dt.date.today().isoformat()})
+                                          "snapshot_date": dt.date.today().isoformat(),
+                                          "url_source": url_src.get(view, "")})
                     print(f"  - {site}/{view}: skipped_after_block")
                     continue
                 if not url:
@@ -428,24 +539,50 @@ def main(argv=None):
                         st_search = next((c["status"] for c in coverage_rows
                                           if c["site"] == site and c["view"] == "search"), None)
                         status = "not_found" if st_search == "ok" else "skipped_search_failed"
+                    elif view in DISCOVERED_VIEWS and urls.get("entry"):
+                        # 링크를 찾을 화면(entry·home·explore) 중 하나라도 열렸으면 '못 찾음', 모두 실패했으면 '건너뜀'
+                        st_src = {c["status"] for c in coverage_rows
+                                  if c["site"] == site and c["view"] in LINK_SOURCE_VIEWS}
+                        opened = st_src & {"ok", "login_redirect"}
+                        status = "not_found" if opened else "skipped_entry_failed"
                     else:
                         status = "not_configured"
                     coverage_rows.append({"run_id": run_id, "site": site, "category": row.get("category", ""),
                                           "view": view, "status": status, "requested_url": "", "final_url": "",
                                           "http_status": "", "title": "", "error": "", "browser_version": browser.version,
-                                          "snapshot_date": dt.date.today().isoformat()})
+                                          "snapshot_date": dt.date.today().isoformat(), "url_source": ""})
                     print(f"  - {site}/{view}: {status}")
                     continue
+                if view == "home" and urls.get("entry"):
+                    e_cov = next((c for c in coverage_rows if c["site"] == site and c["view"] == "entry"), {})
+                    if same_page(url, urls["entry"]) or same_page(url, e_cov.get("final_url")):
+                        coverage_rows.append({"run_id": run_id, "site": site, "category": row.get("category", ""),
+                                              "view": view, "status": "same_as_entry", "requested_url": url,
+                                              "final_url": e_cov.get("final_url", ""), "http_status": "", "title": "",
+                                              "error": "", "browser_version": browser.version,
+                                              "snapshot_date": dt.date.today().isoformat(),
+                                              "url_source": url_src.get(view, "")})
+                        print(f"  - {site}/{view}: same_as_entry")
+                        continue
                 r = collect_view(context, site, view, url, out, scripts_dir, script_scan_cache, args)
                 m = r["meta"]
                 if view == "search" and r["product_url"] and not urls.get("product"):
                     urls["product"] = r["product_url"]
+                if view in LINK_SOURCE_VIEWS:
+                    al = r.get("auth_links") or {}
+                    # entry 가 로그인 화면으로 리다이렉트되면 그 URL 이 곧 login 화면
+                    if m.get("status") == "login_redirect" and m.get("final_url") and not urls.get("login"):
+                        urls["login"], url_src["login"] = m["final_url"], "entry_redirect"
+                    for v in DISCOVERED_VIEWS:
+                        if al.get(v) and not urls.get(v):
+                            urls[v], url_src[v] = al[v], f"discovered({al.get(v + '_by')})"
                 coverage_rows.append({"run_id": run_id, "site": site, "category": row.get("category", ""),
                                       "view": view, "status": m.get("status"), "requested_url": url,
                                       "final_url": m.get("final_url", ""), "http_status": m.get("http_status", ""),
                                       "title": (m.get("title") or "")[:120], "error": m.get("error", ""),
                                       "browser_version": browser.version,
-                                      "snapshot_date": dt.date.today().isoformat()})
+                                      "snapshot_date": dt.date.today().isoformat(),
+                                      "url_source": url_src.get(view, "")})
                 print(f"  - {site}/{view}: {m.get('status')} {m.get('http_status', '')} {(m.get('title') or '')[:50]}",
                       flush=True)
                 if m.get("status") == "blocked_suspected":

@@ -1,0 +1,51 @@
+﻿no,site,service,type,category,rank,rank_source,confidence,verified,locale,timezone,entry_url,home_url,login_url,signup_url,explore_url,pricing_url,owner,notes
+1,facebook.com,Facebook,SNS,social,5,tranco V38GN,높음,미검증,en-US,America/New_York,https://facebook.com/,https://facebook.com/,,,,,소현,fb.com 동일
+2,instagram.com,Instagram,SNS,social,14,tranco V38GN,높음,미검증,en-US,America/New_York,https://instagram.com/,https://instagram.com/,,,,,소현,
+3,twitter.com,X (Twitter),SNS,social,16,tranco V38GN,높음,미검증,en-US,America/New_York,https://x.com/,https://x.com/,,,,,소현,x.com(48위) 동일 서비스
+4,linkedin.com,LinkedIn,SNS(직업),social,17,tranco V38GN,높음,미검증,en-US,America/New_York,https://linkedin.com/,https://linkedin.com/,,,,,소현,
+5,pinterest.com,Pinterest,SNS,social,54,tranco V38GN,높음,미검증,en-US,America/New_York,https://pinterest.com/,https://pinterest.com/,,,,,소현,
+6,tiktok.com,TikTok,SNS(숏폼),social,61,tranco V38GN,높음,미검증,en-US,America/New_York,https://tiktok.com/,https://tiktok.com/,,,,,소현,
+7,whatsapp.com,WhatsApp Web,메신저,social,64,tranco V38GN,중간,미검증,en-US,America/New_York,https://web.whatsapp.com/,https://www.whatsapp.com/,,,,,소현,
+8,reddit.com,Reddit,커뮤니티,social,109,tranco V38GN,높음,미검증,en-US,America/New_York,https://reddit.com/,https://reddit.com/,,,,,소현,
+9,tumblr.com,Tumblr,SNS(블로그형),social,151,tranco V38GN,높음,미검증,en-US,America/New_York,https://tumblr.com/,https://tumblr.com/,,,,,소현,
+10,snapchat.com,Snapchat,SNS,social,158,tranco V38GN,중간,미검증,en-US,America/New_York,https://web.snapchat.com/,https://www.snapchat.com/,,,,,소현,
+11,telegram.org,Telegram Web,메신저,social,161,tranco V38GN,중간,미검증,en-US,America/New_York,https://web.telegram.org/,https://telegram.org/,,,,,소현,t.me 동일 서비스
+12,vk.com,VK,SNS,social,164,tranco V38GN,높음,미검증,ru-RU,Europe/Moscow,https://vk.com/,https://vk.com/,,,,,소현,vk.ru·vkontakte.ru 동일
+13,discord.com,Discord,메신저·커뮤니티,social,180,tranco V38GN,높음,미검증,en-US,America/New_York,https://discord.com/app,https://discord.com/,,,,,소현,
+14,flickr.com,Flickr,관심사 기반(사진),social,181,tranco V38GN,중간,미검증,en-US,America/New_York,https://flickr.com/,https://flickr.com/,,,,,소현,
+15,medium.com,Medium,블로그형,social,205,tranco V38GN,중간,미검증,en-US,America/New_York,https://medium.com/,https://medium.com/,,,,,소현,
+16,weibo.com,Weibo,SNS,social,330,tranco V38GN,높음,미검증,zh-CN,Asia/Shanghai,https://weibo.com/,https://weibo.com/,,,,,소현,
+17,ok.ru,Odnoklassniki,SNS,social,352,tranco V38GN,높음,미검증,ru-RU,Europe/Moscow,https://ok.ru/,https://ok.ru/,,,,,소현,
+18,bsky.app,Bluesky,SNS,social,367,tranco V38GN,높음,미검증,en-US,America/New_York,https://bsky.app/,https://bsky.app/,,,,,소현,
+19,substack.com,Substack,블로그형,social,424,tranco V38GN,중간,미검증,en-US,America/New_York,https://substack.com/,https://substack.com/,,,,,소현,
+20,steamcommunity.com,Steam Community,관심사 기반(게임),social,430,tranco V38GN,중간,미검증,en-US,America/New_York,https://steamcommunity.com/,https://steamcommunity.com/,,,,,소현,
+21,goodreads.com,Goodreads,관심사 기반(도서),social,476,tranco V38GN,중간,미검증,en-US,America/New_York,https://goodreads.com/,https://goodreads.com/,,,,,소현,
+22,quora.com,Quora,커뮤니티(Q&A),social,501,tranco V38GN,높음,미검증,en-US,America/New_York,https://quora.com/,https://quora.com/,,,,,소현,
+23,behance.net,Behance,관심사 기반(디자인),social,538,tranco V38GN,중간,미검증,en-US,America/New_York,https://behance.net/,https://behance.net/,,,,,소현,
+24,threads.com,Threads,SNS,social,569,tranco V38GN,높음,미검증,en-US,America/New_York,https://threads.com/,https://threads.com/,,,,,소현,threads.net 동일
+25,deviantart.com,DeviantArt,관심사 기반(예술),social,582,tranco V38GN,중간,미검증,en-US,America/New_York,https://deviantart.com/,https://deviantart.com/,,,,,소현,
+26,wattpad.com,Wattpad,관심사 기반(창작),social,746,tranco V38GN,중간,미검증,en-US,America/New_York,https://wattpad.com/,https://wattpad.com/,,,,,소현,(웹 로그인·게시)
+27,livejournal.com,LiveJournal,블로그형,social,810,tranco V38GN,중간,미검증,en-US,America/New_York,https://livejournal.com/,https://livejournal.com/,,,,,소현,
+28,ameblo.jp,Ameba Blog,블로그형,social,813,tranco V38GN,중간,미검증,ja-JP,Asia/Tokyo,https://ameblo.jp/,https://ameblo.jp/,,,,,소현,ameba.jp 동일 회사
+29,pikabu.ru,Pikabu,커뮤니티,social,926,tranco V38GN,중간,미검증,ru-RU,Europe/Moscow,https://pikabu.ru/,https://pikabu.ru/,,,,,소현,
+30,note.com,note,블로그형,social,930,tranco V38GN,중간,미검증,ja-JP,Asia/Tokyo,https://note.com/,https://note.com/,,,,,소현,
+31,kwai.com,Kwai,SNS(숏폼),social,1011,tranco V38GN,중간,미검증,en-US,America/New_York,https://kwai.com/,https://kwai.com/,,,,,소현,
+32,pixiv.net,pixiv,관심사 기반(일러스트),social,1015,tranco V38GN,중간,미검증,ja-JP,Asia/Tokyo,https://pixiv.net/,https://pixiv.net/,,,,,소현,(웹 로그인·게시)
+33,xing.com,XING,SNS(직업),social,1019,tranco V38GN,높음,미검증,en-US,America/New_York,https://xing.com/,https://xing.com/,,,,,소현,
+34,xiaohongshu.com,Xiaohongshu (RED),SNS,social,1024,tranco V38GN,높음,미검증,zh-CN,Asia/Shanghai,https://xiaohongshu.com/,https://xiaohongshu.com/,,,,,소현,
+35,letterboxd.com,Letterboxd,관심사 기반(영화),social,1056,tranco V38GN,중간,미검증,en-US,America/New_York,https://letterboxd.com/,https://letterboxd.com/,,,,,소현,
+36,douyin.com,Douyin,SNS(숏폼),social,1073,tranco V38GN,높음,미검증,zh-CN,Asia/Shanghai,https://douyin.com/,https://douyin.com/,,,,,소현,
+37,archiveofourown.org,Archive of Our Own,관심사 기반(창작),social,1082,tranco V38GN,중간,미검증,en-US,America/New_York,https://archiveofourown.org/,https://archiveofourown.org/,,,,,소현,(웹 로그인·게시)
+38,fmkorea.com,FM Korea,커뮤니티,social,1216,tranco V38GN,중간,미검증,ko-KR,Asia/Seoul,https://fmkorea.com/,https://fmkorea.com/,,,,,소현,
+39,dcinside.com,DCInside,커뮤니티,social,1235,tranco V38GN,중간,미검증,ko-KR,Asia/Seoul,https://dcinside.com/,https://dcinside.com/,,,,,소현,
+40,ruliweb.com,Ruliweb,커뮤니티,social,1236,tranco V38GN,중간,미검증,ko-KR,Asia/Seoul,https://ruliweb.com/,https://ruliweb.com/,,,,,소현,
+41,zhihu.com,Zhihu,커뮤니티(Q&A),social,1301,tranco V38GN,높음,미검증,zh-CN,Asia/Shanghai,https://zhihu.com/,https://zhihu.com/,,,,,소현,
+42,arca.live,Arca.live,커뮤니티,social,1389,tranco V38GN,중간,미검증,ko-KR,Asia/Seoul,https://arca.live/,https://arca.live/,,,,,소현,
+43,ptt.cc,PTT,커뮤니티,social,1443,tranco V38GN,중간,미검증,zh-TW,Asia/Taipei,https://ptt.cc/,https://ptt.cc/,,,,,소현,
+44,dribbble.com,Dribbble,관심사 기반(디자인),social,1552,tranco V38GN,중간,미검증,en-US,America/New_York,https://dribbble.com/,https://dribbble.com/,,,,,소현,
+45,theqoo.net,theqoo,커뮤니티,social,1566,tranco V38GN,중간,미검증,ko-KR,Asia/Seoul,https://theqoo.net/,https://theqoo.net/,,,,,소현,
+46,meetup.com,Meetup,SNS(모임),social,1898,tranco V38GN,중간,미검증,en-US,America/New_York,https://meetup.com/,https://meetup.com/,,,,,소현,
+47,strava.com,Strava,관심사 기반(운동),social,2003,tranco V38GN,중간,미검증,en-US,America/New_York,https://strava.com/,https://strava.com/,,,,,소현,
+48,messenger.com,Messenger,메신저,social,2267,tranco V38GN,높음,미검증,en-US,America/New_York,https://messenger.com/,https://messenger.com/,,,,,소현,Meta
+49,douban.com,Douban,SNS,social,2501,tranco V38GN,높음,미검증,zh-CN,Asia/Shanghai,https://douban.com/,https://douban.com/,,,,,소현,
+50,nextdoor.com,Nextdoor,SNS(지역),social,2563,tranco V38GN,높음,미검증,en-US,America/New_York,https://nextdoor.com/,https://nextdoor.com/,,,,,소현,

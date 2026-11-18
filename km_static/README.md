@@ -1,4 +1,4 @@
-# km_static — Tier 1 Static Analyzer 프로토타입 (커머스 파일럿)
+# km_static — Tier 1 Static Analyzer (커머스 파일럿 → 코퍼스 v1)
 
 정의서 V1과 연구 계획 v1 구현 순서 ② "소규모 코퍼스 + Static Analyzer 프로토타입"의 구현이다.
 커머스 사이트 10~20개에서 accesskey, Enter 암묵적 제출 폼, 키 핸들러 수집이 되는지 확인하는 것이 목적이다.
@@ -18,7 +18,8 @@ km/
   instrument.js   init 스크립트: addEventListener / on-property 래핑 → 키·submit 리스너 "등록 사실" 기록
   collect_dom.js  DOM 읽기: accesskey, 폼 암묵적 제출 판정, focused-control 후보, data-hotkey,
                   인라인 핸들러, React/Vue3/jQuery 위임 핸들러, 인라인 스크립트
-  collect.py      크롤러: 사이트별 컨텍스트 → 화면(home/search/product/cart/login) 수집, CDP 교차검증,
+  collect.py      크롤러: 사이트별 컨텍스트 → 화면 수집 (커머스: home/search/product/cart/login,
+                  코퍼스 v1: entry/login/signup), CDP 교차검증,
                   번들 스캔, 스냅샷, 커버리지 기록
   bundle_scan.py  단축키 라이브러리 시그니처(Mousetrap, hotkeys-js, tinykeys 등)
   keyparse.py     리스너 소스에서 키 비교 상수 추출 (e.key==='Enter', keyCode===13, switch-case)
@@ -28,7 +29,10 @@ km/
   reclassify.py   판정 규칙 수정 후 기존 raw 의 화면 상태 재판정 (재접속 없음)
   labelsheet.py   ③ 수동 라벨: C/V 등급 입력 시트 생성(export) → 반영(apply) → 일치도(agree)
   tranco_rank.py  고정 Tranco 리스트로 rank 채우기
+  corpus_import.py 코퍼스 v1 후보 엑셀 → 카테고리별 설정 CSV
+  pipeline.py     코퍼스 v1 카테고리별 수집 + 후처리 실행기 (결과는 카테고리별 폴더)
 config/commerce_pilot.csv   파일럿 코퍼스 20개 (원본 순위 순)
+config/corpus_v1_<category>.csv  코퍼스 v1 카테고리별 설정 (social·productivity·cloud 각 50개)
 tests/                      로컬 픽스처(정답지 포함) + 검증 스크립트
 ```
 
@@ -49,6 +53,7 @@ Python 3.10 이상이 필요하다.
 ```powershell
 # 0) 수집기 자체 검증 (외부 접속 없음). 20/20 checks passed 가 나와야 함 (로컬 테스트 페이지만 검사. 실제 사이트는 접속하지 않음)
 python -m tests.test_fixture
+python -m tests.test_corpus_v1   # 코퍼스 v1 화면 구성·링크 탐색 (19/19)
 
 # 1) (선택) 순위 재산출: 코퍼스의 rank는 이미 원본 순위로 채워져 있음.
 #    같은 Tranco 리스트로 다시 확인하려면 CSV를 내려받은 뒤 (기존 rank를 덮어씀)
@@ -128,7 +133,59 @@ Tier 1의 고정값은 다음과 같다. 정적 근거만으로는 확정하지 
 
 `action_id`는 화면과 무관한 요소 서명으로 만든다. 그래서 공통 헤더 검색창처럼 여러 화면에 반복되는 요소는 같은 action_id로 묶이고, 액션 수 집계 때 중복 제거된다(정의서 5장).
 
-## 코퍼스
+## 코퍼스 v1 (social · productivity · cloud)
+
+코퍼스 v1 후보 엑셀(카테고리별 Tranco V38GN 상위 50)에서 담당 카테고리를 가져와 카테고리마다 따로 수집한다.
+
+```powershell
+# 1) 엑셀 → 카테고리별 설정 CSV (config/corpus_v1_<category>.csv, 원본 해시는 config/corpus_v1_source.json)
+#    엑셀 '검증 결과'가 '제외'인 행은 빠진다. 엑셀을 고친 뒤 다시 실행하면 CSV가 갱신된다.
+.venv\Scripts\python -m km.corpus_import --xlsx "코퍼스 v1 후보 — 카테고리별 상위 50 (Tranco V38GN).xlsx" --categories social,productivity,cloud
+
+# 2) 시운전: 카테고리마다 몇 개 사이트만
+.venv\Scripts\python -m km.pipeline --categories social --sites reddit.com,medium.com --out data_v1_smoke --channel chrome
+
+# 3) 전체 실행: 카테고리를 차례로 수집 + 후처리 (카테고리당 50개 × 5화면, 약 3시간)
+.venv\Scripts\python -m km.pipeline --categories social,productivity,cloud --channel chrome --delay 30 --site-gap 60 --max-blocks-per-site 2
+
+# 수집 없이 후처리만 다시
+.venv\Scripts\python -m km.pipeline --categories cloud --post-only
+```
+
+**결과는 카테고리별 폴더에 따로 저장된다.**
+
+```
+data_v1/
+  social/        raw/ snapshots/ coverage/ records/ report/ labels/
+  productivity/  (같은 구조)
+  cloud/         (같은 구조)
+```
+
+같은 도메인이 여러 카테고리에 있어서(예: google.com 은 productivity 의 Drive, cloud 의 Cloud Console) 한 폴더에 섞으면 `raw/<site>/` 가 서로 덮어쓴다. 그래서 `km.collect` 는 카테고리가 둘 이상 섞인 코퍼스를 거부한다.
+
+**사이트당 서로 다른 화면 5개를 수집한다** (커머스 파일럿의 home/search/product/cart/login 5개에 대응).
+이 카테고리들은 기능 대부분이 로그인 뒤에 있으므로 비로그인으로 볼 수 있는 화면 중에서 정했다.
+
+| # | view | social | productivity · cloud | URL 출처 |
+|---|---|---|---|---|
+| 1 | entry | 진입 URL | 진입 URL | 엑셀의 진입 URL |
+| 2 | home | 서비스 첫 화면 | 서비스 공개 소개 페이지 | CSV `home_url` (콘솔·앱 진입이면 공개 소개 페이지, 아니면 진입 호스트 첫 페이지) |
+| 3 | login | 로그인 | 로그인 | CSV → entry 가 넘어간 로그인 URL → 링크 탐색 |
+| 4 | signup | 가입 | 가입 | CSV → 링크 탐색 |
+| 5 | explore / pricing | **explore** 탐색·인기 피드 | **pricing** 요금제 | CSV → 링크 탐색 |
+| (5') | content / features | 공개 게시물·프로필 1개 | 기능·제품 소개 | home 이 entry 와 같은 페이지일 때만 대신 수집 |
+
+- home 이 entry 와 같은 페이지면(www·끝 슬래시 차이 무시) 다시 접속하지 않고 `same_as_entry` 로 기록하고, 대신 5' 화면을 수집해 5개를 채운다. home 이 따로 있으면 5' 는 `not_needed`.
+- 링크 자동 탐색은 entry·home·explore 화면에서 한다. 짧은 링크 문구(Log in / Sign up / Pricing / Explore / 로그인 / 회원가입 / 요금제 / 인기 / 登录 / 注册 / 热门 / ログイン / Войти 등)를 먼저 보고, 없으면 href 경로(`/login`, `/signup`, `/pricing`, `/explore` 등)를 본다. content 는 같은 사이트 안의 게시물형 경로(`/status/…`, `/comments/…`, `/p/…`, `/@user` 등)다. 로그아웃 링크는 제외한다.
+- 링크는 클릭하지 않고 그 URL 로 `page.goto` 한다.
+- 어떤 URL 로 들어갔는지는 coverage 의 `url_source` 에 남는다(`config` / `entry_redirect` / `discovered(text:Sign in)` / `discovered(href)`).
+- 링크를 못 찾으면 `not_found`, 링크를 찾을 화면이 모두 실패했으면 `skipped_entry_failed` 로 기록하고 분모에 남긴다.
+- entry 가 로그인 화면으로 넘어가면 `login_redirect` 다(차단 아님). 로그인 뒤 앱·콘솔에서는 흔하며, 그 로그인 화면은 login 화면으로 따로 수집된다.
+- 잘못 찾은 URL 이 있으면 CSV 의 `login_url`·`signup_url`·`explore_url`·`pricing_url`·`content_url`·`features_url` 칸을 채워 고정한다.
+- `locale` 은 언어권이 분명한 사이트만 현지 locale(ko-KR, zh-CN, ru-RU, ja-JP 등), 나머지는 en-US 로 접속한다.
+- action_label 키워드에 SNS·협업·클라우드용 단어를 보강했다(tweet, reply, invite, terminate, revoke, launch 등). 1차 추정일 뿐이다.
+
+## 코퍼스 (커머스 파일럿)
 
 `config/commerce_pilot.csv`는 원본 순위 순서로 정렬한 커머스 사이트 20개로 구성된다(번호 1~20). 전부 같은 표본으로 취급한다.
 
