@@ -1,0 +1,6 @@
+{
+  "synthetic": true,
+  "notice": "실측이 아닌 산식 검산 예시. 어떤 사이트의 점수도 아님.",
+  "counts": {"total": 1000, "trigger": 80, "matched": 8, "unknown_focus": 0, "minutes": 50, "sessions": 5, "detected": 3, "detection_trials": 10},
+  "expected": {"trigger_frequency": 0.08, "focus_given_trigger": 0.1, "opportunities_per_1000_keys": 8.0, "opportunities_per_minute": 0.16, "mean_opportunities_per_session": 1.6, "stealth": 70.0}
+}

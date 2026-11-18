@@ -1,0 +1,12 @@
+{
+  "python": "python",
+  "node": "node",
+  "playwright_root": "",
+  "channel": "msedge",
+  "data": "C:/path/to/km_static/data_run1",
+  "baseline": "C:/path/to/커머스20_화면별_후보동작_1회차.xlsx",
+  "review_ledger": "",
+  "observations": "",
+  "no_html": true,
+  "output": "C:/path/to/webhid/outputs/pilot-checker"
+}

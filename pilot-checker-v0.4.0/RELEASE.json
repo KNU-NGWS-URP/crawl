@@ -1,0 +1,48 @@
+{
+  "version": "0.4.0",
+  "distribution_date": "2026-11-18",
+  "source_freeze_date": "2026-11-17",
+  "source_freeze_manifest_sha256": "3fcd53edb4dfabcc6d171390950a377deadf8af9bb45ae4761b75735cc08b508",
+  "code_unchanged": true,
+  "documentation_changes": "Brief naturalness definition, repository-local sharing instructions and public documentation without individual observation mappings.",
+  "frozen_executable_sha256": {
+    "loading.mjs": "8f0e9bc2c138429a3a3662741391fa766bac3341eeb5eddd9e028b84b1dc9448",
+    "outcome.mjs": "85eb5ea43d1722937317cc14c2070a942947d6c34982cf4e50a764ba2dd4e2d2",
+    "package.json": "0194a78ca50f023bc3f21136878e1d771b8e38f7ffafeb1aacf15664ef8e2893",
+    "probe.mjs": "7b3f07cc4be6c57aff0ef263932f9d9f3b3f38ade1b26905eb69df1042dc1dee",
+    "run.ps1": "a1a151f3a47048f188077769a65446ae60802dd679467bbcd2d39af1a26bec96",
+    "pilotcheck/context.py": "bd31dd241f7d6122a398b1e33909e05ce6bd27326e0747f3469f88a8e9441751",
+    "pilotcheck/core.py": "bc626444ab3c55c162a63e4a0758e8ed489bcfaeaecf15532d59f1a9c8ad0faa",
+    "pilotcheck/naturalness.py": "e9ee2054fa06c57b6c099879e980a8a368a2ee3c5a624f9abf27f7a9f312798b",
+    "pilotcheck/observations.py": "756587566d42763c29f6edb27114b87246826c9b69f037dc4cd6a295f1589b5d",
+    "pilotcheck/report.py": "9bcc871f97a8e579d7a96a986a8c01bf78fa0f6a4502f30ab4d92c3b4957bd14",
+    "pilotcheck/__init__.py": "c7041120d0db5568449a8dd372f9d8229bb697a9a05264ade692da9721474000",
+    "pilotcheck/__main__.py": "96be9777363f6efa0ba9198760b02d9bf58f45055efa58c79ae2b7899d0ce0d8",
+    "tests/probe.test.mjs": "17a1c05d7665d5ba6853b996754c232050533f090ed7ca1a31c621004fae35c8",
+    "tests/test_core.py": "e1d0757affe9479a822fb3917b60434a48ad0b3e1c8fd2e7ad284077728bc082",
+    "tests/test_naturalness.py": "b464c3ba136bf2fe172330b6a42387c377ddee08d0ebff7720221953afd8054e",
+    "tests/test_observations.py": "5f51ec62a4deedd87da91dba2a21de222cd058d091a3f821be2ffaf1f84780a0"
+  },
+  "validation": [
+    {
+      "suite": "python-tests",
+      "passed": 39,
+      "failed": 0,
+      "scope": "local fixtures only"
+    },
+    {
+      "suite": "node-tests",
+      "passed": 8,
+      "failed": 0,
+      "scope": "local fixtures only"
+    }
+  ],
+  "excluded": [
+    "settings.local.json",
+    "raw data",
+    "baseline workbooks",
+    "site observations",
+    "cookies and tokens"
+  ],
+  "compatibility": "Original peer-provided km_static data_run1."
+}

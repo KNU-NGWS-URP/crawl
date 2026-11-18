@@ -1,0 +1,7 @@
+{
+  "name": "webhid-pilot-checker",
+  "version": "0.4.0",
+  "private": true,
+  "type": "module",
+  "dependencies": { "playwright": "1.62.1" }
+}
