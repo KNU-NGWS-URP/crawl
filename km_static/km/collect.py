@@ -35,8 +35,8 @@ from .bundle_scan import scan as bundle_scan
 from .labels import ALL_KEYWORDS_JS
 
 HERE = Path(__file__).resolve().parent
-INSTRUMENT_JS = (HERE / "instrument.js").read_text(encoding="utf-8")
-COLLECT_DOM_JS = (HERE / "collect_dom.js").read_text(encoding="utf-8")
+INSTRUMENT_JS = (HERE / "instrument.js").read_text(encoding="utf-8", errors="replace")
+COLLECT_DOM_JS = (HERE / "collect_dom.js").read_text(encoding="utf-8", errors="replace")
 
 VIEWS = ["home", "search", "product", "cart", "login"]          # commerce 파일럿 (config/commerce_pilot.csv)
 # 코퍼스 v1 (config/corpus_v1_<category>.csv): 사이트당 서로 다른 화면 5개.
@@ -361,7 +361,7 @@ def collect_view(context, site: str, view: str, url: str, out_dir: Path, scripts
         snap_dir = out_dir / "snapshots" / safe_name(site)
         snap_dir.mkdir(parents=True, exist_ok=True)
         try:
-            (snap_dir / f"{view}.html").write_text(page.content(), encoding="utf-8")
+            (snap_dir / f"{view}.html").write_text(page.content(), encoding="utf-8", errors="replace")
             page.screenshot(path=str(snap_dir / f"{view}.png"), full_page=False)
             meta["snapshot"] = str((snap_dir / f"{view}.html").relative_to(out_dir))
         except Exception as e:
@@ -407,7 +407,7 @@ def collect_view(context, site: str, view: str, url: str, out_dir: Path, scripts
 
     raw_dir = out_dir / "raw" / safe_name(site)
     raw_dir.mkdir(parents=True, exist_ok=True)
-    (raw_dir / f"{view}.json").write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")
+    (raw_dir / f"{view}.json").write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8", errors="replace")
     return {"meta": meta, "product_url": product_url, "auth_links": auth_links}
 
 
@@ -508,7 +508,7 @@ def main(argv=None):
     def flush_coverage():  # 긴 실행 중 중단돼도 그때까지의 커버리지를 남긴다
         if not coverage_rows:
             return
-        with cov_path.open("w", encoding="utf-8-sig", newline="") as f:
+        with cov_path.open("w", encoding="utf-8-sig", errors="replace", newline="") as f:
             w = csv.DictWriter(f, fieldnames=list(coverage_rows[0].keys()))
             w.writeheader()
             w.writerows(coverage_rows)
@@ -617,7 +617,7 @@ def main(argv=None):
         browser.close()
 
     run_meta["finished"] = now_iso()
-    (out / "coverage" / f"run_{run_id}.json").write_text(json.dumps(run_meta, ensure_ascii=False, indent=1), encoding="utf-8")
+    (out / "coverage" / f"run_{run_id}.json").write_text(json.dumps(run_meta, ensure_ascii=False, indent=1), encoding="utf-8", errors="replace")
     flush_coverage()
     print(f"[km] done. coverage -> {cov_path}")
 

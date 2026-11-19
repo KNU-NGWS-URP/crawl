@@ -8,6 +8,8 @@ Tier 1 레코드는 정의서대로 C/V가 모두 unknown 이다. 이 모듈은 
     python -m km.labelsheet export --data data_run1 --prev 이전시트.xlsx   # 이전 입력값 이어받기
     python -m km.labelsheet apply  --data data_run1 --sheet data_run1/labels/label_sheet.xlsx
     python -m km.labelsheet agree  --a 라벨러A.xlsx --b 라벨러B.xlsx       # 라벨러 간 일치도 (Cohen's kappa)
+    # pilot-checker v0.4.0 분류(검토 대기열·질문)를 붙이고 검토 순서대로 정렬한 통합 시트
+    python -m km.labelsheet export --data data_v1/social --pilotcheck data_v1_pilotcheck/social --force
 
 판정 규칙 (정의서 V1):
   - 술어 P1~P4, S, R1~R3, E 는 Y(근거 있음: 참) / N(근거 있음: 거짓) / 빈칸(근거 부족)으로 입력한다.
@@ -30,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -56,6 +59,20 @@ PREFILLED = [
     ("evidence_ref_t1", "Tier 1 근거 위치 (data 폴더 기준)", None, 30),
     ("snapshot", "스냅샷 경로", None, 24),
 ]
+# pilot-checker v0.4.0 의 분류 결과 (--pilotcheck 를 줄 때만 채움). 참고용이며 판정 입력이 아니다.
+REVIEW = [
+    ("review_order", "검토 순서 (1 = 먼저). 민감 동작 → 인증 → 구독 → 통제 Tier 2 → 근거 확인 → 효과 확인 → 표본 → 키 관찰 대상", None, 8),
+    ("pc_queue", "pilot-checker 검토 대기열", None, 14),
+    ("pc_rule", "pilot-checker 적용 규칙", None, 16),
+    ("pc_suggested_c", "pilot-checker 정적 C 제안 (확정 아님)", None, 9),
+    ("pc_question", "검토할 때 확인할 질문", None, 36),
+    ("pc_reason", "제안 근거 / 미정 이유", None, 36),
+    ("pc_stop_line", "관찰 시 중단선 (여기서 멈춤)", None, 24),
+]
+REVIEW_NAMES = {n for n, *_ in REVIEW}
+QUEUE_ORDER = ["auth_review", "subscription", "controlled_tier2", "evidence_review", "effect_review",
+               "sample_review", "ui_probe"]
+
 INPUTS = [
     ("action_label", "대표 액션 분류 (Appendix E). 1차 추정이 틀리면 고침. 해당 없음이면 none",
      ["financial", "destructive", "transmission", "publication", "auth_change", "execution", "none"], 13),
@@ -87,7 +104,8 @@ INPUTS = [
     ("reviewer", "라벨러", None, 10),
     ("notes", "메모", None, 30),
 ]
-COLS = PREFILLED + INPUTS
+_AN = [n for n, *_ in PREFILLED].index("action_name") + 1
+COLS = PREFILLED[:_AN] + REVIEW + PREFILLED[_AN:] + INPUTS
 IDX = {name: i + 1 for i, (name, *_rest) in enumerate(COLS)}
 
 
@@ -278,8 +296,20 @@ def cmd_export(args):
     order = {"enter-submit": 0, "accesskey": 1, "hotkey": 2, "focused-control": 3, "unknown": 4}
     lab_order = {"financial": 0, "destructive": 1, "transmission": 2, "publication": 3, "execution": 4,
                  "auth_change": 5, None: 6}
-    keys = sorted(groups, key=lambda k: (groups[k][0]["site"], order.get(groups[k][0]["reach_path"], 9),
-                                         lab_order.get(groups[k][0].get("action_label"), 9), k))
+    pc = load_pilotcheck(args.pilotcheck) if args.pilotcheck else {}
+
+    def pc_rank(k):
+        r = pc.get(pc_id(k))
+        if not r:
+            return 99
+        if r.get("rule_id") == "sensitive-action":
+            return 0
+        q = r.get("queue")
+        return 1 + (QUEUE_ORDER.index(q) if q in QUEUE_ORDER else len(QUEUE_ORDER))
+
+    keys = sorted(groups, key=lambda k: ((pc_rank(k),) if pc else ()) + (
+        groups[k][0]["site"], order.get(groups[k][0]["reach_path"], 9),
+        lab_order.get(groups[k][0].get("action_label"), 9), k))
 
     wb = Workbook()
     ws = wb.active
@@ -287,13 +317,14 @@ def cmd_export(args):
     grey = PatternFill("solid", fgColor="EDEDED")
     yellow = PatternFill("solid", fgColor="FFF7D6")
     auto = PatternFill("solid", fgColor="DDEBF7")
+    review = PatternFill("solid", fgColor="E2EFDA")
     for i, (name, desc, allowed, width) in enumerate(COLS, start=1):
         cell = ws.cell(row=1, column=i, value=name)
         cell.font = Font(bold=True)
         cell.alignment = Alignment(wrap_text=True, vertical="top")
         note = desc + (f"\n허용값: {', '.join(allowed)} / 빈칸" if allowed else "")
         cell.comment = Comment(note, "km")
-        cell.fill = grey if (name, desc, allowed, width) in PREFILLED else (
+        cell.fill = grey if (name, desc, allowed, width) in PREFILLED else review if name in REVIEW_NAMES else (
             auto if name in ("C_auto", "danger_auto") else yellow)
         ws.column_dimensions[get_column_letter(i)].width = width
     ws.freeze_panes = ws.cell(row=2, column=IDX["action_name"] + 1)
@@ -313,6 +344,11 @@ def cmd_export(args):
             "snapshot": f'snapshots/{r0["site"]}/{views[0]}.png',
             "action_label": r0.get("action_label") or "",
         }
+        pr = pc.get(pc_id(k))
+        if pr:
+            vals.update({"review_order": ri - 1, "pc_queue": pr.get("queue") or "", "pc_rule": pr.get("rule_id") or "",
+                         "pc_suggested_c": pr.get("suggested_c") or "", "pc_question": pr.get("question") or "",
+                         "pc_reason": pr.get("reason") or "", "pc_stop_line": pr.get("stop_line") or ""})
         if k in prev and touched(prev[k]):
             # 이전 시트 입력이 있으면 그대로 이어받는다 (사람이 고친 값이 자동 라벨보다 우선)
             n_carried += 1
@@ -334,6 +370,8 @@ def cmd_export(args):
         ws.cell(row=ri, column=IDX["danger_auto"], value=_d_formula(ri))
         for name, *_ in PREFILLED:
             ws.cell(row=ri, column=IDX[name]).fill = grey
+        for name in REVIEW_NAMES:
+            ws.cell(row=ri, column=IDX[name]).fill = review
         for name in ("C_auto", "danger_auto"):
             ws.cell(row=ri, column=IDX[name]).fill = auto
 
@@ -371,6 +409,17 @@ def cmd_export(args):
         g.append(row)
     g.column_dimensions["A"].width = 140
 
+    if pc:
+        g.append([])
+        g.append(["초록 열(review_order, pc_*): pilot-checker v0.4.0 분류 결과. 참고용이며 판정 입력이 아니다. "
+                  "행은 review_order 순서로 정렬되어 있다."])
+        g.append(["  1 민감 동작(sensitive-action) → auth_review 인증 폼 → subscription 가입·구독 → controlled_tier2 통제 관찰 대상 "
+                  "→ evidence_review 근거 연결 확인 → effect_review 효과 미확인 → sample_review C1 제안 표본 → ui_probe 키 관찰 대상"])
+        g.append(["  pc_suggested_c 는 정적 제안이다. C 는 P/S/R/E 입력으로만 계산한다. 화면만으로 판단이 안 되면 빈칸으로 둔다."])
+        g.append(["  pilot-checker 행 id = 'R-' + sha256(row_key) 앞 12자리 (classification.csv 와 대조할 때 사용)."])
+        n_unmatched = sum(1 for k in keys if pc_id(k) not in pc)
+        print(f"[labelsheet] pilot-checker 연결: {len(keys) - n_unmatched}/{len(keys)} 행")
+
     out = args.out or (data / "labels" / "label_sheet.xlsx")
     out.parent.mkdir(parents=True, exist_ok=True)
     if out.exists() and not args.force:
@@ -380,6 +429,19 @@ def cmd_export(args):
     c = Counter(groups[k][0]["reach_path"] for k in keys)
     print(f"[labelsheet] {len(keys)} rows ({dict(c)}), carried over {n_carried}, "
           f"auto C1 prelabel {n_pre} {dict(rules)} -> {out}")
+
+
+def pc_id(row_key: str) -> str:
+    """pilot-checker v0.4.0 (core.load_dataset) 와 같은 행 id."""
+    return "R-" + hashlib.sha256(str(row_key).encode()).hexdigest()[:12]
+
+
+def load_pilotcheck(d: Path) -> dict:
+    f = d / "classification.csv"
+    if not f.exists():
+        raise SystemExit(f"[labelsheet] {f} 없음 — 먼저 python -m pilotcheck --data ... --out {d} 실행")
+    with f.open(encoding="utf-8-sig", newline="") as fh:
+        return {r["id"]: r for r in csv.DictReader(fh)}
 
 
 # ------------------------------------------------------------------ apply
@@ -438,11 +500,11 @@ def cmd_apply(args):
 
     out_dir = data / "labels"
     out_dir.mkdir(parents=True, exist_ok=True)
-    with (out_dir / "records_labeled.jsonl").open("w", encoding="utf-8") as f:
+    with (out_dir / "records_labeled.jsonl").open("w", encoding="utf-8", errors="replace") as f:
         for r in recs:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
     fields = [k for k in recs[0].keys() if k != "aux"] + ["aux"] if recs else []
-    with (out_dir / "records_labeled.csv").open("w", encoding="utf-8-sig", newline="") as f:
+    with (out_dir / "records_labeled.csv").open("w", encoding="utf-8-sig", errors="replace", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fields)
         w.writeheader()
         for r in recs:
@@ -522,7 +584,7 @@ def write_summary(data: Path, sheet: list[dict], by_key: dict, out_dir: Path):
     n_have = sum(1 for s in sites if site_ds[s]["confirmed"])
     lines += ["", f"- 대상 사이트 {len(sites)} 중 위험 셀 확정 보유 {n_have}. "
               "'위험 셀 없음'은 관측 범위가 모두 수집되고 그 범위 항목이 모두 excluded 일 때만 쓴다 (정의서 5장).", ""]
-    (out_dir / "labels_summary.md").write_text("\n".join(lines), encoding="utf-8")
+    (out_dir / "labels_summary.md").write_text("\n".join(lines), encoding="utf-8", errors="replace")
 
 
 # ------------------------------------------------------------------ agree
@@ -560,6 +622,8 @@ def main(argv=None):
     e.add_argument("--prev", type=Path, help="이전 시트의 입력값을 row_key 기준으로 이어받음")
     e.add_argument("--force", action="store_true")
     e.add_argument("--no-prelabel", action="store_true", help="뻔한 C1 자동 사전 라벨을 채우지 않음")
+    e.add_argument("--pilotcheck", type=Path, help="pilot-checker v0.4.0 출력 폴더 (classification.csv). "
+                                                  "검토 대기열·질문 열을 붙이고 검토 순서대로 정렬")
     a = sub.add_parser("apply")
     a.add_argument("--data", default=Path("data"), type=Path)
     a.add_argument("--sheet", required=True, type=Path)

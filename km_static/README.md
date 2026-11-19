@@ -213,7 +213,15 @@ python -m km.labelsheet agree --a 라벨러A.xlsx --b 라벨러B.xlsx
 
 # 재수집 후 시트를 다시 만들 때 기존 입력 이어받기
 python -m km.labelsheet export --data data_run1 --prev data_run1/labels/label_sheet.xlsx --out data_run1/labels/label_sheet_v2.xlsx
+
+# pilot-checker v0.4.0 분류를 붙인 검토용 시트 (먼저 python -m pilotcheck --data data_v1/social --out data_v1_pilotcheck/social)
+python -m km.labelsheet export --data data_v1/social --pilotcheck data_v1_pilotcheck/social --force
 ```
+
+- `--pilotcheck`: action_name 바로 뒤에 초록 열(`review_order`, `pc_queue`, `pc_rule`, `pc_suggested_c`,
+  `pc_question`, `pc_reason`, `pc_stop_line`)을 붙이고 검토 순서대로 정렬한다. 순서는 민감 동작 → 인증 →
+  구독 → 통제 Tier 2 → 근거 확인 → 효과 확인 → C1 제안 표본 → 키 관찰 대상. 행 대응은 pilot-checker 와 같은
+  id(`R-` + sha256(row_key) 앞 12자리)로 한다. 초록 열은 참고용이며 apply·pilot-checker 는 열 이름으로 읽으므로 영향이 없다.
 
 - 시트 행: 정상(ok) 화면의 enter-submit·accesskey 전부, `action_label`이 붙은 focused-control·hotkey,
   `needs_manual_review` 레코드. 사이트·action_id·도달 경로·출력 키가 같으면 화면이 달라도 한 행이다.

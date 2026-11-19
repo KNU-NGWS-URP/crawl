@@ -59,7 +59,7 @@ def main(argv=None):
         m["status"] = st
         m["block_reasons"] = reasons
         changed[key] = st
-        fp.write_text(json.dumps(raw, ensure_ascii=False, indent=1), encoding="utf-8")
+        fp.write_text(json.dumps(raw, ensure_ascii=False, indent=1), encoding="utf-8", errors="replace")
 
     covs = sorted(p for p in (data / "coverage").glob("coverage_*.csv") if not p.stem.endswith("_reclass"))
     if not covs:
@@ -90,7 +90,7 @@ def main(argv=None):
                 r["status"] = "skipped_entry_failed"
     out = src.with_name(src.stem + "_reclass.csv")
     fields = list(dict.fromkeys(k for r in rows for k in r))  # 실행마다 칸이 다를 수 있음 (예: url_source 추가 전 실행분)
-    with out.open("w", encoding="utf-8-sig", newline="") as f:
+    with out.open("w", encoding="utf-8-sig", errors="replace", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fields, restval="")
         w.writeheader()
         w.writerows(rows)

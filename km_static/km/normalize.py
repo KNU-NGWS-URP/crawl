@@ -112,7 +112,7 @@ class Builder:
 
     def add(self, *, action_key, action_name, label_texts, output_sequence, reach_path, evidence_source,
             evidence_ptr, confidence, focus, frame_is_top, aux):
-        lab = classify(*label_texts)
+        lab = classify(*[t for t in label_texts if isinstance(t, str)])  # DOM 이름 충돌(form.title 등)로 객체가 오면 제외
         action_id = h(self.site, action_key)
         rec = {
             "site": self.site, "category": self.category, "action_id": action_id,
@@ -361,22 +361,22 @@ def main(argv=None):
 
     outd = data / "records"
     outd.mkdir(parents=True, exist_ok=True)
-    with (outd / "records.jsonl").open("w", encoding="utf-8") as f:
+    with (outd / "records.jsonl").open("w", encoding="utf-8", errors="replace") as f:
         for r in all_recs:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
-    with (outd / "records.csv").open("w", encoding="utf-8-sig", newline="") as f:
+    with (outd / "records.csv").open("w", encoding="utf-8-sig", errors="replace", newline="") as f:
         w = csv.DictWriter(f, fieldnames=SCHEMA_FIELDS + EXTRA_FIELDS)
         w.writeheader()
         for r in all_recs:
             row = dict(r)
             row["aux"] = json.dumps(r["aux"], ensure_ascii=False)
             w.writerow(row)
-    with (outd / "view_stats.csv").open("w", encoding="utf-8-sig", newline="") as f:
+    with (outd / "view_stats.csv").open("w", encoding="utf-8-sig", errors="replace", newline="") as f:
         if all_stats:
             w = csv.DictWriter(f, fieldnames=list(all_stats[0].keys()))
             w.writeheader()
             w.writerows(all_stats)
-    with (outd / "site_signals.csv").open("w", encoding="utf-8-sig", newline="") as f:
+    with (outd / "site_signals.csv").open("w", encoding="utf-8-sig", errors="replace", newline="") as f:
         w = csv.DictWriter(f, fieldnames=["site", "view", "signal", "level", "source", "evidence_source"])
         w.writeheader()
         w.writerows(signals)
