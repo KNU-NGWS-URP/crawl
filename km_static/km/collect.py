@@ -55,6 +55,19 @@ def v1_views(category: str) -> list[str]:
     return V1_VIEWS_BY_CATEGORY.get(category, V1_VIEWS_DEFAULT)
 
 
+def mark_raw_status(out: Path, site: str, view: str, status: str, reasons: list) -> None:
+    """수집 후 상태를 바꿀 때 raw json 의 meta 도 같이 맞춘다 (후처리가 raw 를 기준으로 하므로)."""
+    fp = out / "raw" / safe_name(site) / f"{view}.json"
+    try:
+        raw = json.loads(fp.read_text(encoding="utf-8"))
+    except Exception:
+        return
+    m = raw.setdefault("meta", {})
+    m.setdefault("status_prev", m.get("status"))
+    m["status"], m["block_reasons"] = status, reasons
+    fp.write_text(json.dumps(raw, ensure_ascii=False, indent=1), encoding="utf-8", errors="replace")
+
+
 def same_page(a: str | None, b: str | None) -> bool:
     """www. 와 끝 '/' 차이는 같은 페이지로 본다 (home 이 entry 와 같으면 다시 접속하지 않기 위해)."""
     def norm(u):
@@ -75,7 +88,9 @@ AUTH_LINK_JS = r"""
   const FEATURES_T = /^\s*(features|products?|solutions|platform|templates|why [\w.]+|기능|제품|솔루션|템플릿|产品|功能|解决方案|機能|製品|возможности|продукты|решения)\b/i;
   const FEATURES_H = /\/(features|products?|solutions|platform|templates)([\/?#._-]|$)/i;
   // 공개 게시물·프로필: 같은 사이트 안의 게시물형 경로 (클릭하지 않고 URL 로 이동)
-  const CONTENT_H = /\/(status|statuses|comments|p|post|posts|video|videos|reel|reels|pin|story|stories|thread|threads|t|question|questions|answer|item|photos|shot|shots|gallery|works|artworks|book\/show|film|n|s|board|article|articles|topic|topics)\/[^\/?#]+|^\/@[\w.-]+\/?$/i;
+  const CONTENT_H = /\/(status|statuses|comments|p|post|posts|video|videos|reel|reels|pin|story|stories|thread|threads|t|question|questions|answer|item|photos|shot|shots|gallery|works|artworks|book\/show|film|n|s|board(?!\/lists)|article|articles|topic|topics)\/[^\/?#]+|^\/@[\w.-]+\/?$/i;
+  // 로그인·가입 주소로 가는 링크는 탐색·요금제·기능·게시물 화면으로 쓰지 않음 (예: flickr 'BEST. NEIGHBORS. EVER.' → /signup)
+  const authish = (href) => { try { const p = new URL(href).pathname; return LOGIN_H.test(p) || SIGNUP_H.test(p); } catch (e) { return false; } };
   const BAD = /(log\s?-?out|sign\s?-?out|logoff|выход|로그아웃|退出)/i;
   const res = {login: null, signup: null, pricing: null, explore: null, features: null, content: null};
   const host = location.hostname.replace(/^www\./, '');
@@ -83,7 +98,7 @@ AUTH_LINK_JS = r"""
   // 같은 페이지로 돌아오는 링크(href="#", "#top")는 다른 화면이 아니므로 제외
   const samePage = (href) => href.split('#')[0] === here;
   // 문구는 '구절 + 짧은 꼬리(20자 이내)'만 인정: "Sign up for free" O, "Join the community of IT pros" X
-  const fits = (re, t) => { const m = t.match(re); return !!m && (t.length - m[0].length) <= 20; };
+  const fits = (re, t, tail = 20) => { const m = t.match(re); return !!m && (t.length - m[0].length) <= tail; };
   for (const a of document.querySelectorAll('a[href]')) {
     const href = a.href || '';
     if (!/^https?:/i.test(href) || samePage(href)) continue;
@@ -93,9 +108,11 @@ AUTH_LINK_JS = r"""
     if (BAD.test(t) || BAD.test(href)) continue;
     if (!res.login && fits(LOGIN_T, t)) { res.login = href; res.login_by = 'text:' + t; }
     if (!res.signup && fits(SIGNUP_T, t)) { res.signup = href; res.signup_by = 'text:' + t; }
-    if (!res.pricing && fits(PRICING_T, t)) { res.pricing = href; res.pricing_by = 'text:' + t; }
-    if (!res.explore && fits(EXPLORE_T, t)) { res.explore = href; res.explore_by = 'text:' + t; }
-    if (!res.features && fits(FEATURES_T, t)) { res.features = href; res.features_by = 'text:' + t; }
+    const auth = authish(href);
+    if (!res.pricing && !auth && fits(PRICING_T, t)) { res.pricing = href; res.pricing_by = 'text:' + t; }
+    // 탐색 문구는 꼬리 12자까지만: '실시간 베스트 갤러리' O, '실시간 ○○○ 근황.jpg'(게시글 제목) X
+    if (!res.explore && !auth && fits(EXPLORE_T, t, 12)) { res.explore = href; res.explore_by = 'text:' + t; }
+    if (!res.features && !auth && fits(FEATURES_T, t)) { res.features = href; res.features_by = 'text:' + t; }
   }
   for (const a of document.querySelectorAll('a[href]')) {   // 문구로 못 찾으면 href 경로로
     const href = a.href || '';
@@ -117,7 +134,7 @@ AUTH_LINK_JS = r"""
 KEY_EVENT_TYPES = {"keydown", "keyup", "keypress", "submit"}
 BLOCK_RX = re.compile(
     r"captcha|access denied|are you a (robot|human)|robot or human|pardon our interruption|"
-    r"unusual traffic|unusual (browser )?activity|confirm (that )?you('|’)?re (a )?human|verify (that )?you are (a )?human|"
+    r"unusual traffic|unusual (browser )?activity|confirm (that )?you( are|('|’)re) (a )?human|verify (that )?you are (a )?human|"
     r"i am human|press (&|and) hold|request blocked|bot detection|click the button below to continue shopping|"
     r"보안문자|보안 문자|자동입력 방지|비정상적인 (접근|요청)|접근이 (차단|제한)",
     re.IGNORECASE,
@@ -143,7 +160,7 @@ def classify_status(view: str, requested_url: str, final_url: str, http_status, 
     body = body or ""
     req, fin = urlparse(requested_url or ""), urlparse(final_url or "")
     reasons = []
-    if http_status in (401, 403, 429, 498, 503):
+    if http_status in (401, 403, 405, 429, 498, 503):
         reasons.append(f"http_{http_status}")
     if BLOCK_URL_RX.search(fin.path) and not BLOCK_URL_RX.search(req.path):
         reasons.append("challenge_url")
@@ -161,6 +178,8 @@ def classify_status(view: str, requested_url: str, final_url: str, http_status, 
         return "interstitial", [f"text:{m_int.group(0)[:40]}"]
     if view != "home" and fin.path in ("", "/") and req.path not in ("", "/"):
         return "redirected_home", ["final_path=/"]
+    if isinstance(http_status, int) and http_status >= 400:
+        return "http_error", [f"http_{http_status}"]
     return "ok", []
 MAX_SCRIPT_BYTES = 15_000_000
 LOGIN_RX = re.compile(r"(^|[./_-])(login|signin|sign-in|logowanie|passport|auth|sso)([./_-]|$)", re.IGNORECASE)
@@ -449,6 +468,7 @@ def main(argv=None):
     ap.add_argument("--site-gap", type=float, default=0.0, help="사이트 사이 추가 대기(초)")
     ap.add_argument("--max-blocks-per-site", type=int, default=0,
                     help="한 사이트에서 차단 의심 화면이 이 수에 도달하면 남은 화면을 접속하지 않고 skipped_after_block 으로 기록 (0=끄기)")
+    ap.add_argument("--run-tag", default="", help="run_id 뒤에 붙일 표시 (km.pipeline --workers 가 w1, w2 … 로 지정)")
     ap.add_argument("--resume", action="store_true",
                     help="--out 의 기존 coverage 에 모든 화면이 기록된 사이트는 건너뜀 (긴 실행이 중간에 멈췄을 때)")
     ap.add_argument("--no-cdp", action="store_true")
@@ -493,7 +513,7 @@ def main(argv=None):
     if args.save_scripts:
         scripts_dir.mkdir(parents=True, exist_ok=True)
 
-    run_id = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+    run_id = dt.datetime.now().strftime("%Y%m%d-%H%M%S") + (f"-{args.run_tag}" if args.run_tag else "")
     run_meta = {"run_id": run_id, "started": now_iso(), "km_version": __version__, "python": sys.version,
                 "platform": platform.platform(), "args": {k: str(v) for k, v in vars(args).items()},
                 "corpus_file": str(args.corpus), "corpus_sha256": sha256(args.corpus.read_bytes())}
@@ -538,7 +558,9 @@ def main(argv=None):
                 url = urls.get(view)
                 if view in EXTRA_VIEWS:
                     home_st = next((c["status"] for c in coverage_rows if c["site"] == site and c["view"] == "home"), None)
-                    if home_st != "same_as_entry":  # home 이 따로 있으면 이미 서로 다른 화면 5개 → 접속하지 않음
+                    dup_before = any(c["site"] == site and c["status"] == "duplicate_page" for c in coverage_rows)
+                    # home 이 따로 있고 중복 화면도 없으면 이미 서로 다른 화면 5개 → 접속하지 않음
+                    if home_st != "same_as_entry" and not dup_before:
                         coverage_rows.append({"run_id": run_id, "site": site, "category": row.get("category", ""),
                                               "view": view, "status": "not_needed", "requested_url": "",
                                               "final_url": "", "http_status": "", "title": "", "error": "",
@@ -594,9 +616,21 @@ def main(argv=None):
                     # entry 가 로그인 화면으로 리다이렉트되면 그 URL 이 곧 login 화면
                     if m.get("status") == "login_redirect" and m.get("final_url") and not urls.get("login"):
                         urls["login"], url_src["login"] = m["final_url"], "entry_redirect"
+                    used = [u for u in urls.values() if u] + [c.get("final_url") for c in coverage_rows
+                                                              if c["site"] == site and c.get("final_url")]
+                    used.append(m.get("final_url"))
                     for v in DISCOVERED_VIEWS:
-                        if al.get(v) and not urls.get(v):
-                            urls[v], url_src[v] = al[v], f"discovered({al.get(v + '_by')})"
+                        cand = al.get(v)
+                        # 다른 화면에 이미 쓴 주소(또는 그 도착 주소)면 서로 다른 화면이 아니므로 쓰지 않음
+                        if cand and not urls.get(v) and not any(same_page(cand, u) for u in used):
+                            urls[v], url_src[v] = cand, f"discovered({al.get(v + '_by')})"
+                            used.append(cand)
+                if m.get("status") == "ok":
+                    dup = next((c["view"] for c in coverage_rows if c["site"] == site and c["status"] == "ok"
+                                and same_page(c.get("final_url"), m.get("final_url"))), None)
+                    if dup:  # 앞 화면과 같은 페이지에 도착 → 서로 다른 화면이 아님 (분모에는 남김)
+                        m["status"], m["block_reasons"] = "duplicate_page", [f"same_final_url_as:{dup}"]
+                        mark_raw_status(out, site, view, "duplicate_page", m["block_reasons"])
                 coverage_rows.append({"run_id": run_id, "site": site, "category": row.get("category", ""),
                                       "view": view, "status": m.get("status"), "requested_url": url,
                                       "final_url": m.get("final_url", ""), "http_status": m.get("http_status", ""),

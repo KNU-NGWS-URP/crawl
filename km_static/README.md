@@ -53,7 +53,7 @@ Python 3.10 이상이 필요하다.
 ```powershell
 # 0) 수집기 자체 검증 (외부 접속 없음). 20/20 checks passed 가 나와야 함 (로컬 테스트 페이지만 검사. 실제 사이트는 접속하지 않음)
 python -m tests.test_fixture
-python -m tests.test_corpus_v1   # 코퍼스 v1 화면 구성·링크 탐색 (19/19)
+python -m tests.test_corpus_v1   # 코퍼스 v1 화면 구성·링크 탐색·차단 판정 (25/25)
 
 # 1) (선택) 순위 재산출: 코퍼스의 rank는 이미 원본 순위로 채워져 있음.
 #    같은 Tranco 리스트로 다시 확인하려면 CSV를 내려받은 뒤 (기존 rank를 덮어씀)
@@ -145,7 +145,10 @@ Tier 1의 고정값은 다음과 같다. 정적 근거만으로는 확정하지 
 # 2) 시운전: 카테고리마다 몇 개 사이트만
 .venv\Scripts\python -m km.pipeline --categories social --sites reddit.com,medium.com --out data_v1_smoke --channel chrome
 
-# 3) 전체 실행: 카테고리를 차례로 수집 + 후처리 (카테고리당 50개 × 5화면, 약 3시간)
+# 3) 전체 실행: 사이트를 4개 작업으로 나눠 동시에 수집 + 후처리 (카테고리당 약 20분, 세 카테고리 약 1시간)
+.venv\Scripts\python -m km.pipeline --categories social,productivity,cloud --channel chrome --workers 4 --delay 8 --site-gap 5 --max-blocks-per-site 1
+
+#    (1회차 방식) 브라우저 하나로 천천히 — 카테고리당 약 4시간
 .venv\Scripts\python -m km.pipeline --categories social,productivity,cloud --channel chrome --delay 30 --site-gap 60 --max-blocks-per-site 2
 
 # 수집 없이 후처리만 다시
@@ -176,6 +179,9 @@ data_v1/
 | (5') | content / features | 공개 게시물·프로필 1개 | 기능·제품 소개 | home 이 entry 와 같은 페이지일 때만 대신 수집 |
 
 - home 이 entry 와 같은 페이지면(www·끝 슬래시 차이 무시) 다시 접속하지 않고 `same_as_entry` 로 기록하고, 대신 5' 화면을 수집해 5개를 채운다. home 이 따로 있으면 5' 는 `not_needed`.
+- 도착 주소가 같은 사이트의 앞 화면과 같으면 `duplicate_page` 로 기록한다(서로 다른 화면이 아님, 분모에는 남김). 이때도 5' 화면을 수집한다. 이미 다른 화면에 쓴 주소는 링크 탐색에서 다시 고르지 않는다.
+- 차단 판정: 401·403·405·429·498·503 또는 챌린지 문구('confirm you are human' 등) → `blocked_suspected`. 그 밖의 4xx·5xx 는 `http_error` 로 ok 에서 뺀다.
+- `--workers N`: 사이트를 N 묶음으로 나눠 동시에 수집한다. 한 사이트 안의 화면은 한 작업이 차례로 열어 사이트별 요청 간격(`--delay`)은 그대로다. coverage 파일은 `coverage_<시각>-w1.csv` 처럼 작업별로 생기고 후처리에서 합쳐진다. 중간에 멈추면 같은 명령에 `--resume`.
 - 링크 자동 탐색은 entry·home·explore 화면에서 한다. 짧은 링크 문구(Log in / Sign up / Pricing / Explore / 로그인 / 회원가입 / 요금제 / 인기 / 登录 / 注册 / 热门 / ログイン / Войти 등)를 먼저 보고, 없으면 href 경로(`/login`, `/signup`, `/pricing`, `/explore` 등)를 본다. content 는 같은 사이트 안의 게시물형 경로(`/status/…`, `/comments/…`, `/p/…`, `/@user` 등)다. 로그아웃 링크는 제외한다.
 - 링크는 클릭하지 않고 그 URL 로 `page.goto` 한다.
 - 어떤 URL 로 들어갔는지는 coverage 의 `url_source` 에 남는다(`config` / `entry_redirect` / `discovered(text:Sign in)` / `discovered(href)`).

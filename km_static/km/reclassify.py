@@ -17,7 +17,7 @@ import csv
 import json
 from pathlib import Path
 
-from .collect import classify_status
+from .collect import classify_status, same_page
 
 RECLASSIFIABLE = {"ok", "blocked_suspected", "login_redirect", "interstitial", "redirected_home"}
 
@@ -60,6 +60,33 @@ def main(argv=None):
         m["block_reasons"] = reasons
         changed[key] = st
         fp.write_text(json.dumps(raw, ensure_ascii=False, indent=1), encoding="utf-8", errors="replace")
+
+    # 같은 사이트에서 앞 화면과 같은 페이지에 도착한 ok 화면은 서로 다른 화면이 아니다 → duplicate_page
+    dup_order = ["entry", "home", "search", "product", "cart", "login", "signup", "explore", "pricing", "content",
+                 "features"]
+    finals: dict = {}
+    for fp in sorted((data / "raw").glob("*/*.json")):
+        raw = json.loads(fp.read_text(encoding="utf-8"))
+        m = raw.get("meta", {})
+        key = (m.get("site"), m.get("view", fp.stem))
+        if changed.get(key) == "ok":
+            finals[key] = (m.get("final_url", ""), fp)
+    for site in sorted({k[0] for k in finals}):
+        seen_ok = []
+        for view in sorted((v for s_, v in finals if s_ == site),
+                           key=lambda v: dup_order.index(v) if v in dup_order else 99):
+            fin, fp = finals[(site, view)]
+            dup = next((v for v, u in seen_ok if same_page(u, fin)), None)
+            if dup:
+                raw = json.loads(fp.read_text(encoding="utf-8"))
+                m = raw["meta"]
+                m.setdefault("status_prev", m.get("status"))
+                m["status"], m["block_reasons"] = "duplicate_page", [f"same_final_url_as:{dup}"]
+                fp.write_text(json.dumps(raw, ensure_ascii=False, indent=1), encoding="utf-8", errors="replace")
+                changed[(site, view)] = "duplicate_page"
+                print(f"  {site}/{view}: ok -> duplicate_page (same final URL as {dup})")
+            else:
+                seen_ok.append((view, fin))
 
     covs = sorted(p for p in (data / "coverage").glob("coverage_*.csv") if not p.stem.endswith("_reclass"))
     if not covs:

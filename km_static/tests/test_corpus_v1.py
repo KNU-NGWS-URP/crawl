@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from playwright.sync_api import sync_playwright  # noqa: E402
 
-from km.collect import AUTH_LINK_JS, same_page, v1_views  # noqa: E402
+from km.collect import AUTH_LINK_JS, classify_status, same_page, v1_views  # noqa: E402
 from km.corpus_import import home_for, locale_for  # noqa: E402
 
 # (설명, 페이지 URL, HTML, 기대 {키: URL 또는 None})
@@ -38,6 +38,14 @@ LINK_CASES = [
     ("문구 + 짧은 꼬리는 인정", "https://app.test/", '<a href="/s">Sign up for free</a>', {"signup": "https://app.test/s"}),
     ("숨은 링크(크기 0)는 문구 탐색에서 제외", "https://app.test/",
      '<a href="https://app.test/x" style="display:none">Log in</a>', {"login": None}),
+    ("가입 주소로 가는 링크는 explore 아님", "https://flickr.test/",
+     '<a href="https://flickr.test/signup?utm=1">BEST. NEIGHBORS. EVER.</a>', {"explore": None}),
+    ("게시글 제목은 explore 아님", "https://dc.test/",
+     '<a href="https://dc.test/board/view/?no=9">실시간 아무개 근황 사진.jpg</a><a href="https://dc.test/hot">실시간 베스트</a>',
+     {"explore": "https://dc.test/hot"}),
+    ("게시판 목록은 content 아님", "https://dc.test/",
+     '<a href="https://dc.test/board/lists/?id=best">x</a><a href="https://dc.test/board/view/?id=best&no=1">y</a>',
+     {"content": "https://dc.test/board/view/?id=best&no=1"}),
 ]
 
 
@@ -58,6 +66,11 @@ def main():
     check("locale: .ru", locale_for("pikabu.ru", "https://pikabu.ru/") == "ru-RU")
     check("locale: 한국 커뮤니티", locale_for("dcinside.com", "https://dcinside.com/") == "ko-KR")
     check("locale: 기본 en-US", locale_for("github.com", "https://github.com/") == "en-US")
+    u = "https://dribbble.com/shots/popular"
+    check("405 + 'Let's confirm you are human' 은 차단",
+          classify_status("explore", u, u, 405, "Let's confirm you are human", "")[0] == "blocked_suspected")
+    check("그 밖의 4xx 는 ok 아님", classify_status("login", u, u, 404, "Not found", "")[0] == "http_error")
+    check("200 정상 화면은 ok", classify_status("explore", u, u, 200, "Popular shots", "designs")[0] == "ok")
 
     with sync_playwright() as p:
         b = p.chromium.launch()
@@ -72,7 +85,7 @@ def main():
             ok = all(got.get(k) == v for k, v in exp.items())
             check(f"링크 탐색: {desc}", ok, {k: got.get(k) for k in exp})
         b.close()
-    total = 9 + len(LINK_CASES)
+    total = 12 + len(LINK_CASES)
     print(f"\n{total - fails}/{total} checks passed")
     return 1 if fails else 0
 
